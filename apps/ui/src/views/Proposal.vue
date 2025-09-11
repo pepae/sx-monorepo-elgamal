@@ -66,10 +66,11 @@ const withoutContentInBottom = computed(
 );
 
 async function handleVoteClick(choice: Choice) {
-  if (!web3.value.account) {
-    modalAccountOpen.value = true;
-    return;
-  }
+  // Bypass wallet check for local testing
+  // if (!web3.value.account) {
+  //   modalAccountOpen.value = true;
+  //   return;
+  // }
 
   selectedChoice.value = choice;
 

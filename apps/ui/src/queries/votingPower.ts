@@ -134,26 +134,34 @@ export function useProposalVotingPowerQuery(
 
       if (!proposalValue) return;
 
-      return getVotingPower(
-        web3.value.account,
-        getProposalSnapshot(toValue(proposal)),
-        {
-          ...proposalValue.space,
-          network: proposalValue.network
-        },
-        [
-          proposalValue.strategies,
-          proposalValue.strategies_params,
-          proposalValue.space.strategies_parsed_metadata
-        ]
-      );
+      // Bypass voting power calculation - always return 1
+      return {
+        symbol: proposalValue.space.voting_power_symbol || 'VP',
+        votingPowers: [{ value: 1, decimals: 0, token: null, symbol: 'VP' }],
+        canVote: true
+      };
+
+      // Original code (commented out):
+      // return getVotingPower(
+      //   web3.value.account,
+      //   getProposalSnapshot(toValue(proposal)),
+      //   {
+      //     ...proposalValue.space,
+      //     network: proposalValue.network
+      //   },
+      //   [
+      //     proposalValue.strategies,
+      //     proposalValue.strategies_params,
+      //     proposalValue.space.strategies_parsed_metadata
+      //   ]
+      // );
     },
     retry: (failureCount, error) => {
       if (error?.message.includes('NOT_READY_YET')) return false;
 
       return failureCount < 3;
     },
-    enabled: () => !!toValue(account) && toValue(active),
+    enabled: () => toValue(active), // Remove account requirement
     staleTime: CACHE_TTL
   });
 }

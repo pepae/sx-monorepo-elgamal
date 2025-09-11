@@ -18,6 +18,12 @@ from typing import List, Dict, Any, Optional
 VOTING_BACKEND_URL = "http://localhost:5000"  # Your election server
 DEFAULT_SPACE_ID = "encrypted-dao.eth"
 
+# Consistent addresses for space and proposals - Use known strategy names
+SPACE_CONTROLLER = "0x" + secrets.token_hex(20)
+VOTING_STRATEGY_ADDRESS = "erc20-balance-of"  # Use well-known strategy name
+VALIDATION_STRATEGY_ADDRESS = "0x" + secrets.token_hex(20)
+TOKEN_ADDRESS = "0x" + secrets.token_hex(20)
+
 # In-memory storage for proposals (in production, use a database)
 proposals_storage = []
 
@@ -158,11 +164,19 @@ def handle_propose_mutation(query: str, variables: dict):
     title_match = re.search(r'title:\s*"([^"]*)"', query)
     body_match = re.search(r'body:\s*"([^"]*)"', query)
     type_match = re.search(r'type:\s*"([^"]*)"', query)
+    choices_match = re.search(r'choices:\s*\[([^\]]*)\]', query)
     
     space_id = space_match.group(1) if space_match else "encrypted-dao"
     title = title_match.group(1) if title_match else "Untitled Proposal"
     body = body_match.group(1) if body_match else ""
-    vote_type = type_match.group(1) if type_match else "single-choice"
+    vote_type = "basic"  # Force to "basic" for voting support
+    
+    # Parse choices array
+    if choices_match:
+        choices_str = choices_match.group(1)
+        choices = [choice.strip().strip('"') for choice in choices_str.split(',')]
+    else:
+        choices = ["For", "Against", "Abstain"]
     
     # Create a new proposal
     current_time = int(time.time())
@@ -188,9 +202,10 @@ def handle_propose_mutation(query: str, variables: dict):
     else:
         print("Failed to send proposal to backend")
     
-    # Create the full proposal object for storage - match the exact proposalFields fragment
+    # Create the full proposal object for storage - match GraphQL proposalFields fragment
+    proposal_hex_id = "0x" + secrets.token_hex(32)
     full_proposal = {
-        "id": f"{space_id}/{proposal_id}",  # Full space/id format for UI linking
+        "id": proposal_hex_id,  # Use hex ID like real Snapshot
         "proposal_id": int(proposal_id),
         "space": {
             "id": space_id,
@@ -217,43 +232,43 @@ def handle_propose_mutation(query: str, variables: dict):
                 "executors_destinations": [],
                 "executors_strategies": []
             },
-            "controller": "0x" + secrets.token_hex(20),
+            "controller": SPACE_CONTROLLER,
             "voting_delay": 0,
             "min_voting_period": 3600,
             "max_voting_period": 86400,
             "proposal_threshold": "0",
-            "validation_strategy": "0x" + secrets.token_hex(20),
+            "validation_strategy": VALIDATION_STRATEGY_ADDRESS,
             "validation_strategy_params": "0x",
-            "voting_power_validation_strategy_strategies": ["0x" + secrets.token_hex(20)],
+            "voting_power_validation_strategy_strategies": [VOTING_STRATEGY_ADDRESS],
             "voting_power_validation_strategy_strategies_params": ["0x"],
             "voting_power_validation_strategies_parsed_metadata": [
                 {
                     "index": 0,
                     "data": {
-                        "id": "0x" + secrets.token_hex(20),
+                        "id": VOTING_STRATEGY_ADDRESS,
                         "name": "Encrypted Vote Token",
                         "description": "Token for encrypted voting",
                         "decimals": 18,
                         "symbol": "EVOTE",
-                        "token": "0x" + secrets.token_hex(20),
+                        "token": TOKEN_ADDRESS,
                         "payload": "{}"
                     }
                 }
             ],
             "strategies_indices": [0],
-            "strategies": ["0x" + secrets.token_hex(20)],
-            "strategies_params": ["0x"],
+            "strategies": [VOTING_STRATEGY_ADDRESS],
+            "strategies_params": [f'{{"address":"{TOKEN_ADDRESS}","symbol":"EVOTE","decimals":18}}'],
             "strategies_parsed_metadata": [
                 {
                     "index": 0,
                     "data": {
-                        "id": "0x" + secrets.token_hex(20),
-                        "name": "Encrypted Vote Token",
-                        "description": "Token for encrypted voting",
+                        "id": VOTING_STRATEGY_ADDRESS,
+                        "name": "ERC20 Balance Of",
+                        "description": "Returns the balance of an ERC20 token",
                         "decimals": 18,
                         "symbol": "EVOTE",
-                        "token": "0x" + secrets.token_hex(20),
-                        "payload": "{}"
+                        "token": TOKEN_ADDRESS,
+                        "payload": f'{{"address":"{TOKEN_ADDRESS}","symbol":"EVOTE","decimals":18}}'
                     }
                 }
             ],
@@ -274,7 +289,7 @@ def handle_propose_mutation(query: str, variables: dict):
             "body": body,
             "discussion": "",
             "execution": "",
-            "choices": ["For", "Against", "Abstain"],
+            "choices": choices,
             "labels": []
         },
         "start": 23339712,      # Last finalized Ethereum block (Sep 2025)
@@ -303,8 +318,8 @@ def handle_propose_mutation(query: str, variables: dict):
         "treasuries": [],
         "timelock_veto_guardian": "0x0000000000000000000000000000000000000000",
         "strategies_indices": [0],
-        "strategies": ["0x" + secrets.token_hex(20)],
-        "strategies_params": ["0x"],
+        "strategies": [VOTING_STRATEGY_ADDRESS],  # Must match space strategies
+        "strategies_params": [f'{{"address":"{TOKEN_ADDRESS}","symbol":"EVOTE","decimals":18}}'],
         "created": int(time.time()),  # Current Unix timestamp (Sep 2025)
         "edited": 0,
         "tx": "0x" + secrets.token_hex(32),
@@ -647,15 +662,19 @@ def handle_proposal_query(variables: dict):
     for i, proposal in enumerate(proposals_storage):
         print(f"    {i+1}. {proposal.get('metadata', {}).get('title', 'Untitled')} (full_id: {proposal.get('id')}) (proposal_id: {proposal.get('proposal_id')})")
     
-    # Find the proposal in storage - check both formats
+    # Find the proposal in storage - check multiple ID formats
     found_proposal = None
     for proposal in proposals_storage:
         prop_full_id = proposal.get("id", "")
         prop_numeric_id = str(proposal.get("proposal_id", ""))
         
-        # Check if IDs match in any format
+        # Check if IDs match in any format:
+        # - Direct hex ID match
+        # - Legacy space/numeric format 
+        # - Numeric ID match
         if (prop_full_id == proposal_id or 
             prop_numeric_id == actual_id or
+            f"encrypted-dao/{prop_numeric_id}" == proposal_id or
             prop_full_id.endswith(f"/{actual_id}")):
             found_proposal = proposal
             break
