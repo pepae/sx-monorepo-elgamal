@@ -199,6 +199,12 @@ const formErrors = computed(() => {
 });
 const isSubmitButtonLoading = computed(() => {
   if (web3.value.authLoading) return true;
+  
+  // For testing: bypass account requirement for localhost
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return sending.value;
+  }
+  
   if (!web3.value.account) return false;
 
   return (
@@ -220,6 +226,11 @@ const canSubmit = computed(() => {
     unsupportedPremiumStrategiesList.value.length
   ) {
     return false;
+  }
+
+  // For testing: bypass authentication requirement for localhost
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return true;
   }
 
   return web3.value.account
@@ -293,8 +304,13 @@ async function handleProposeClick() {
   }
 
   if (!web3.value.account) {
-    modalAccountOpen.value = true;
-    return;
+    // For testing: bypass wallet requirement for localhost
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // Continue without wallet authentication
+    } else {
+      modalAccountOpen.value = true;
+      return;
+    }
   }
 
   sending.value = true;

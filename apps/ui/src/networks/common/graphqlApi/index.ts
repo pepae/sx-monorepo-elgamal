@@ -812,6 +812,16 @@ export function createApi(
       return {};
     },
     loadSettings: async () => {
+      // For our custom adapter on eth network, fetch settings from the adapter
+      if (networkId === 'eth' && uri.includes('localhost:4001')) {
+        try {
+          const response = await fetch('http://localhost:4001/api/settings');
+          const settings = await response.json();
+          return settings;
+        } catch (error) {
+          console.error('Failed to load settings from adapter:', error);
+        }
+      }
       return [];
     },
     async loadLastIndexedBlock(): Promise<number | null> {
