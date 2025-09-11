@@ -277,10 +277,10 @@ def handle_propose_mutation(query: str, variables: dict):
             "choices": ["For", "Against", "Abstain"],
             "labels": []
         },
-        "start": 20800000,      # Recent-ish Ethereum block number for start
-        "min_end": 20800100,    # Slightly later block for min end
-        "max_end": 20800200,    # Even later block for max end
-        "snapshot": 20799900,   # Snapshot block (earlier than start)
+        "start": 23339712,      # Last finalized Ethereum block (Sep 2025)
+        "min_end": 23339812,    # Future block for min end (about 20 minutes later)
+        "max_end": 23340012,    # Future block for max end (about 1 hour later)
+        "snapshot": 23339662,   # Snapshot block (50 blocks earlier than start)
         "state": "active",  # Explicitly set state as active
         "vp_decimals": 18,
         "scores_1": "0",
@@ -305,7 +305,7 @@ def handle_propose_mutation(query: str, variables: dict):
         "strategies_indices": [0],
         "strategies": ["0x" + secrets.token_hex(20)],
         "strategies_params": ["0x"],
-        "created": 1726061300,  # Sep 11, 2024 13:48 UTC (Unix seconds)
+        "created": int(time.time()),  # Current Unix timestamp (Sep 2025)
         "edited": 0,
         "tx": "0x" + secrets.token_hex(32),
         "execution_tx": "",
@@ -319,13 +319,13 @@ def handle_propose_mutation(query: str, variables: dict):
     }
     
     # DEBUG: Print the actual timing values being stored
-    print(f">>> STORED TIMING VALUES (Block numbers for eth network):")
+    print(f">>> STORED TIMING VALUES (Last finalized Sep 2025 block numbers for eth network):")
     print(f"    current_time: {current_time}")
-    print(f"    start: 20800000 (recent block)")
-    print(f"    min_end: 20800100 (later block)") 
-    print(f"    max_end: 20800200 (even later block)")
-    print(f"    created: 1726061300 (Unix timestamp for created)")
-    print(f"    snapshot: 20799900 (snapshot block)")
+    print(f"    start: 23339712 (last finalized block - Sep 2025)")
+    print(f"    min_end: 23339812 (future block - ~20 min later)") 
+    print(f"    max_end: 23340012 (future block - ~1 hr later)")
+    print(f"    created: {int(time.time())} (current Unix timestamp for created)")
+    print(f"    snapshot: 23339662 (snapshot block - 50 blocks ago)")
     
     # Store the proposal in memory
     proposals_storage.append(full_proposal)
