@@ -294,10 +294,11 @@ def handle_propose_mutation(query: str, variables: dict):
         },
         "start": 23339712,      # Last finalized Ethereum block (Sep 2025)
         "min_end": 23339812,    # Future block for min end (about 20 minutes later)
-        "max_end": 23340012,    # Future block for max end (about 1 hour later)
+        "max_end": 23550012,    # Future block for max end (about 1 hour later)
         "snapshot": 23339662,   # Snapshot block (50 blocks earlier than start)
         "state": "active",  # Explicitly set state as active
         "vp_decimals": 18,
+        "scores": [0, 0, 0],  # Initialize scores array [For, Against, Abstain]
         "scores_1": "0",
         "scores_2": "0", 
         "scores_3": "0",
@@ -338,7 +339,7 @@ def handle_propose_mutation(query: str, variables: dict):
     print(f"    current_time: {current_time}")
     print(f"    start: 23339712 (last finalized block - Sep 2025)")
     print(f"    min_end: 23339812 (future block - ~20 min later)") 
-    print(f"    max_end: 23340012 (future block - ~1 hr later)")
+    print(f"    max_end: 23350012 (future block - ~1 hr later)")
     print(f"    created: {int(time.time())} (current Unix timestamp for created)")
     print(f"    snapshot: 23339662 (snapshot block - 50 blocks ago)")
     
@@ -385,35 +386,114 @@ def handle_vote_mutation(query, variables):
 
     # Extract vote data from the mutation query
     proposal_match = re.search(r'proposal:\s*"([^"]*)"', query)
-    choice_match = re.search(r'choice:\s*(\d+)', query)
+    choice_match = re.search(r'choice:\s*(\w+)', query)  # Changed to capture words like "for"
     reason_match = re.search(r'reason:\s*"([^"]*)"', query)
 
     proposal_id = proposal_match.group(1) if proposal_match else ""
-    choice = int(choice_match.group(1)) if choice_match else 0
+    choice_str = choice_match.group(1) if choice_match else "for"
     reason = reason_match.group(1) if reason_match else ""
 
-    print(f"Vote - Proposal: {proposal_id}, Choice: {choice}, Reason: {reason}")
+    # Convert choice string to number
+    choice_map = {"for": 1, "against": 2, "abstain": 3}
+    choice = choice_map.get(choice_str.lower(), 1)  # Default to 1 (for)
 
-    # Create vote data for the backend
+    print(f"Vote - Proposal: {proposal_id}, Choice: {choice} ({choice_str}), Reason: {reason}")
+
+    # Check for duplicate votes from same voter
+    global votes
+    if "votes" not in globals():
+        votes = []
+    
+    # Check if this voter already voted on this proposal
+    voter_address = "0x1234567890123456789012345678901234567890"  # Mock voter address
+    existing_vote = None
+    for vote in votes:
+        if vote["proposal_id"] == proposal_id and vote["voter"] == voter_address:
+            existing_vote = vote
+            break
+    
+    if existing_vote:
+        print(f"Voter {voter_address} already voted on proposal {proposal_id}")
+        return {
+            "data": {
+                "vote": {
+                    "id": existing_vote["id"],
+                    "txHash": "0x" + secrets.token_hex(32)  # Return existing vote
+                }
+            }
+        }
+
+    # Set voting power to 1
+    voting_power = 1
+    
+    # Store vote in memory
+    vote_id = "0x" + secrets.token_hex(32)
     vote_data = {
+        "id": vote_id,
+        "proposal_id": proposal_id,
+        "choice": choice,
+        "reason": reason,
+        "voter": "0x1234567890123456789012345678901234567890",  # Mock voter address
+        "vp": voting_power,  # Voting power
+        "created": int(time.time())
+    }
+    
+    # Store in global votes list
+    votes.append(vote_data)
+    
+    # Update proposal vote counts
+    global proposals_storage
+    for proposal in proposals_storage:
+        if proposal["id"] == proposal_id:
+            # Initialize scores array if it doesn't exist
+            if "scores" not in proposal:
+                proposal["scores"] = [0, 0, 0]  # [For, Against, Abstain]
+            
+            # Update scores using voting power (choice 1 = For, choice 2 = Against, choice 3 = Abstain)
+            if choice == 1:
+                proposal["scores"][0] += voting_power
+                proposal["scores_1"] = str(proposal["scores"][0])
+            elif choice == 2:
+                proposal["scores"][1] += voting_power
+                proposal["scores_2"] = str(proposal["scores"][1])
+            elif choice == 3:
+                proposal["scores"][2] += voting_power
+                proposal["scores_3"] = str(proposal["scores"][2])
+            
+            # Update total score, vote count, and scores_by_strategy
+            proposal["scores_total"] = str(sum(proposal["scores"]))
+            proposal["vote_count"] = proposal.get("vote_count", 0) + 1
+            proposal["scores_by_strategy"] = [proposal["scores"]]  # Update scores_by_strategy to match scores
+            proposal["edited"] = int(time.time())  # Update edited timestamp to force UI refresh
+            
+            print(f"Updated proposal {proposal_id} scores: {proposal['scores']} (VP: {voting_power})")
+            print(f"Vote count: {proposal['vote_count']}")
+            print(f"Scores total: {proposal['scores_total']}")
+            print(f"Scores by strategy: {proposal['scores_by_strategy']}")
+            break
+
+    # Send vote to backend for threshold encryption processing (if backend exists)
+    backend_vote_data = {
         "proposal_id": proposal_id,
         "choice": choice,
         "reason": reason
     }
-    
-    # Send vote to backend for threshold encryption processing
-    backend_result = call_backend("POST", "/vote", vote_data)
+    backend_result = call_backend("POST", "/vote", backend_vote_data)
     
     if backend_result:
         print(f"Vote sent to backend: {backend_result}")
     else:
-        print("Failed to send vote to backend")
+        print("Backend not available, vote stored locally only")
+    
+    # Add minimal delay to simulate transaction processing
+    import time as time_module
+    time_module.sleep(0.1)  # Reduced to 0.1 seconds
     
     # Return success response
     return {
         "data": {
             "vote": {
-                "id": "0x" + secrets.token_hex(32),  # Mock vote ID
+                "id": vote_id,
                 "txHash": "0x" + secrets.token_hex(32)  # Mock transaction hash
             }
         }

@@ -316,33 +316,47 @@ export function useActions() {
     reason: string,
     app: string
   ): Promise<string | null> {
-    if (!auth.value) {
-      await forceLogin();
-      return null;
-    }
-
-    const network = getNetwork(proposal.network);
-    const signer = await getOptionalAliasSigner(auth.value, proposal.network);
-
-    const txHash = await wrapPromise(
-      proposal.network,
-      network.actions.vote(
-        signer,
-        auth.value.connector.type,
-        auth.value.account,
-        proposal,
-        choice,
-        reason,
-        app
-      ),
-      {
-        safeAppContext: 'vote'
+    // Make actual GraphQL mutation to adapter for local testing
+    console.log('Making vote mutation:', { proposal: proposal.id, choice, reason, app });
+    
+    const mutation = `
+      mutation {
+        vote(
+          proposal: "${proposal.id}"
+          choice: ${choice}
+          reason: "${reason}"
+          app: "${app}"
+        ) {
+          id
+          txHash
+        }
       }
-    );
-
-    if (txHash) addPendingVote(proposal.id);
-
-    return txHash;
+    `;
+    
+    try {
+      const response = await fetch('http://localhost:4001/graphql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: mutation,
+          variables: {}
+        }),
+      });
+      
+      const result = await response.json();
+      
+      if (result.data?.vote?.txHash) {
+        addPendingVote(proposal.id);
+        return result.data.vote.txHash;
+      } else {
+        throw new Error('Vote mutation failed: ' + JSON.stringify(result));
+      }
+    } catch (error) {
+      console.error('Vote mutation error:', error);
+      throw error;
+    }
   }
 
   async function propose(
