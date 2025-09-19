@@ -333,7 +333,8 @@ def handle_propose_mutation(query: str, variables: dict):
         "executed": False,
         "vetoed": False,
         "execution_settled": False,
-        "cancelled": False
+        "cancelled": False,
+        "privacy": "shutter"
     }
     
     # DEBUG: Print the actual timing values being stored

@@ -23,6 +23,7 @@ import {
 import {
   Follow,
   NetworkID,
+  Privacy,
   Proposal,
   ProposalExecution,
   ProposalState,
@@ -378,7 +379,7 @@ function formatProposal(
     execution_settled: proposal.execution_settled,
     state,
     network: networkId,
-    privacy: 'none',
+    privacy: proposal.privacy as Privacy,
     quorum: Number(proposal.execution_strategy_details?.quorum || 0),
     flagged: false,
     flag_code: 0,

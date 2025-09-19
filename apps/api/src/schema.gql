@@ -306,6 +306,8 @@ type Proposal {
   completed: Boolean!
   "Whether proposal has been cancelled"
   cancelled: Boolean!
+  "Privacy level of the proposal"
+  privacy: String!
 }
 
 """

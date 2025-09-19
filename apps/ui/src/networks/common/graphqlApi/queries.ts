@@ -152,6 +152,7 @@ gql(`
     vetoed
     execution_settled
     cancelled
+    privacy
   }
 `);
 
