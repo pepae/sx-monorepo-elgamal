@@ -303,6 +303,8 @@ def handle_propose_mutation(query: str, variables: dict):
         "scores_2": "0", 
         "scores_3": "0",
         "scores_total": "0",
+        "scores_state": "pending",  # Set initial scores state as pending
+        "scores_by_strategy": [[0, 0, 0]],  # Initialize scores_by_strategy to match scores
         "execution_time": 0,
         "execution_strategy": "0x0000000000000000000000000000000000000000",
         "execution_strategy_details": {
@@ -853,6 +855,102 @@ async def cast_vote_rest(vote_data: dict):
     except Exception as e:
         print(f"Vote casting error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to cast vote: {str(e)}")
+
+@app.post("/api/end_voting/{proposal_id}")
+async def end_voting(proposal_id: str):
+    """Manually end voting for a proposal and trigger tallying"""
+    
+    print(f">>> Manual end voting triggered for proposal: {proposal_id}")
+    
+    # Find the proposal in storage
+    found_proposal = None
+    for proposal in proposals_storage:
+        prop_full_id = proposal.get("id", "")
+        prop_numeric_id = str(proposal.get("proposal_id", ""))
+        
+        # Check if IDs match in any format
+        if (prop_full_id == proposal_id or 
+            prop_numeric_id == proposal_id or
+            f"encrypted-dao/{prop_numeric_id}" == proposal_id):
+            found_proposal = proposal
+            break
+    
+    if not found_proposal:
+        raise HTTPException(status_code=404, detail=f"Proposal {proposal_id} not found")
+    
+    # Call backend to end voting and get final tally
+    try:
+        backend_result = call_backend("POST", f"/api/end_voting", {"proposal_id": proposal_id})
+        
+        if backend_result:
+            print(f"Backend voting ended: {backend_result}")
+            # Use tally results from backend if available
+            final_tally = backend_result.get("tally", found_proposal.get("scores", [0, 0, 0]))
+        else:
+            print("Backend not available, using local vote counts")
+            # Use current local vote counts as final tally
+            final_tally = found_proposal.get("scores", [0, 0, 0])
+    except Exception as e:
+        print(f"Backend error during vote ending: {e}")
+        # Use current local vote counts as final tally
+        final_tally = found_proposal.get("scores", [0, 0, 0])
+    
+    # Update proposal state to "closed" and mark scores as final
+    current_time = int(time.time())
+    # Use block numbers that are in the past (earlier than start block)
+    past_block = 23339700  # Block number before the start block (23339712)
+    found_proposal.update({
+        "state": "closed",
+        "scores_state": "final",
+        "scores": final_tally,
+        "scores_1": str(final_tally[0]),
+        "scores_2": str(final_tally[1]) if len(final_tally) > 1 else "0",
+        "scores_3": str(final_tally[2]) if len(final_tally) > 2 else "0",
+        "scores_total": str(sum(final_tally)),
+        "scores_by_strategy": [final_tally],
+        "min_end": past_block,  # Set end block to past so it shows as ended
+        "max_end": past_block,
+        "edited": current_time,  # Force UI refresh
+        "execution_ready": True,  # Mark as ready for execution if needed
+    })
+    
+    print(f">>> Voting ended for proposal: {found_proposal.get('metadata', {}).get('title', 'Untitled')}")
+    print(f">>> Final tally: {final_tally}")
+    print(f">>> State: {found_proposal['state']}")
+    print(f">>> Scores state: {found_proposal['scores_state']}")
+    
+    return {
+        "success": True,
+        "proposal_id": proposal_id,
+        "state": "closed",
+        "final_tally": final_tally,
+        "scores_total": sum(final_tally),
+        "message": f"Voting ended for proposal {proposal_id}"
+    }
+
+@app.get("/api/proposals")
+async def list_proposals_rest():
+    """REST endpoint to list all proposals (for testing/debugging)"""
+    
+    proposals_list = []
+    for proposal in proposals_storage:
+        proposals_list.append({
+            "id": proposal.get("id"),
+            "proposal_id": proposal.get("proposal_id"),
+            "title": proposal.get("metadata", {}).get("title", "Untitled"),
+            "state": proposal.get("state", "active"),
+            "scores": proposal.get("scores", [0, 0, 0]),
+            "scores_state": proposal.get("scores_state", "pending"),
+            "vote_count": proposal.get("vote_count", 0),
+            "created": proposal.get("created"),
+            "min_end": proposal.get("min_end"),
+            "max_end": proposal.get("max_end")
+        })
+    
+    return {
+        "proposals": proposals_list,
+        "count": len(proposals_list)
+    }
 
 if __name__ == "__main__":
     import uvicorn
