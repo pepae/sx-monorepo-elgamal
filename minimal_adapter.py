@@ -12,10 +12,25 @@ import json
 import time
 import secrets
 import re
+import sys
+import os
 from typing import List, Dict, Any, Optional
 
+# Import ElGamal crypto functions from local crypto module
+try:
+    from crypto.elgamal import encrypt, prove_discrete_log_or, setup_elgamal
+    print("✅ Successfully imported ElGamal crypto functions from local crypto module")
+except ImportError as e:
+    print(f"Warning: Could not import ElGamal crypto: {e}")
+    print("Make sure the crypto directory is accessible")
+    # Define dummy functions for development
+    def encrypt(p, g, h, m): return 1, 1, 1
+    def prove_discrete_log_or(*args): return []
+    def setup_elgamal(): return 1, 1
+
 # Configuration
-VOTING_BACKEND_URL = "http://localhost:5000"  # Your election server
+ELECTION_SERVER_URL = "http://localhost:5000"  # ElGamal election server
+KEYPER_SERVER_URL = "http://localhost:5001"    # Keyper threshold server
 DEFAULT_SPACE_ID = "encrypted-dao.eth"
 
 # Consistent addresses for space and proposals - Use known strategy names
@@ -44,9 +59,9 @@ app.add_middleware(
 )
 
 def call_backend(method: str, endpoint: str, data: dict = None) -> dict:
-    """Call our voting backend and handle errors."""
+    """Call our election backend and handle errors."""
     try:
-        url = f"{VOTING_BACKEND_URL}{endpoint}"
+        url = f"{ELECTION_SERVER_URL}{endpoint}"
         if method == "GET":
             response = requests.get(url, timeout=10)
         elif method == "POST":
@@ -185,22 +200,28 @@ def handle_propose_mutation(query: str, variables: dict):
     print(f"UI timing values (IGNORED): start={variables.get('start')}, min_end={variables.get('min_end')}, max_end={variables.get('max_end')}")
     print(f"Using correct Unix timestamps: current_time={current_time}, start={current_time - 3600}, min_end={current_time + 86400}")
 
-    proposal_data = {
-        "space": space_id,
-        "title": title,
-        "body": body,
-        "type": vote_type,
-        "created": current_time,
-        "start": current_time - 3600,  # Started 1 hour ago (active now)
-        "min_end": current_time + 86400,  # End in 24 hours  
-        "max_end": current_time + 172800,  # Max end in 48 hours
-    }    # Send to backend for threshold encryption processing
-    backend_result = call_backend("POST", "/proposal", proposal_data)
+    # Initialize ElGamal election for this proposal
+    print(f"🔐 Initializing ElGamal election for proposal: {title}")
     
-    if backend_result:
-        print(f"Proposal sent to backend: {backend_result}")
+    # First check if election server is available
+    status_check = call_backend("GET", "/api/status")
+    if not status_check:
+        print(f"❌ ElGamal election server not available")
+        # Continue with non-encrypted proposal
     else:
-        print("Failed to send proposal to backend")
+        print(f"✅ ElGamal election server is available")
+        
+        # Try to initialize a simple election
+        try:
+            init_result = call_backend("POST", "/api/init", {})
+            
+            if init_result and init_result.get("status") == "ok":
+                print(f"✅ ElGamal election initialized successfully")
+                print(f"🔑 Public key available for voting")
+            else:
+                print(f"❌ Failed to initialize ElGamal election: {init_result}")
+        except Exception as e:
+            print(f"❌ Error initializing ElGamal election: {e}")
     
     # Create the full proposal object for storage - match GraphQL proposalFields fragment
     proposal_hex_id = "0x" + secrets.token_hex(32)
@@ -407,6 +428,75 @@ def handle_vote_mutation(query, variables):
     if "votes" not in globals():
         votes = []
     
+    # Convert choice to simple vote value for ElGamal (-1, 0, 1)
+    # choice 1 = For (vote 1), choice 2 = Against (vote -1), choice 3 = Abstain (vote 0)
+    vote_value_map = {1: 1, 2: -1, 3: 0}
+    vote_value = vote_value_map.get(choice, 1)  # Default to 1 (for)
+    
+    voter_address = "0x1234567890123456789012345678901234567890"  # Mock voter address
+    
+    print(f"🔐 Encrypting vote from {voter_address} on proposal {proposal_id}")
+    print(f"Choice {choice} ({choice_str}) -> ElGamal vote value: {vote_value}")
+
+    # Get ElGamal parameters from election server
+    params_result = call_backend("GET", "/api/params")
+    if not params_result or "p" not in params_result:
+        print(f"❌ Failed to get ElGamal parameters: {params_result}")
+        # Fall back to unencrypted vote
+        encrypted_vote_data = {"vote_value": vote_value, "encrypted": False}
+    else:
+        print(f"📊 Got ElGamal parameters: p={params_result.get('p')}, g={params_result.get('g')}, h={params_result.get('h')}")
+        
+        try:
+            # Encrypt the vote using ElGamal
+            p = int(params_result["p"])
+            g = int(params_result["g"])
+            h = int(params_result["h"])
+            
+            # Encrypt the vote value
+            c1, c2, r = encrypt(p, g, h, vote_value)
+            
+            # Generate zero-knowledge proof that vote is in {-1, 0, 1}
+            proof = prove_discrete_log_or(p, g, h, c1, c2, vote_value, r, [-1, 0, 1])
+            
+            encrypted_vote_data = {
+                "c1": str(c1),
+                "c2": str(c2),
+                "proof": proof,
+                "vote_value": vote_value,  # Store for verification
+                "encrypted": True
+            }
+            
+            print(f"✅ Vote encrypted with zero-knowledge proof")
+            
+        except Exception as e:
+            print(f"❌ Encryption failed: {e}")
+            # Fall back to unencrypted vote
+            encrypted_vote_data = {"vote_value": vote_value, "encrypted": False}
+    
+    # Submit encrypted vote to election server
+    if encrypted_vote_data.get("encrypted", False):
+        # Only submit to ElGamal server if encryption succeeded
+        submit_data = {
+            "c1": encrypted_vote_data.get("c1"),
+            "c2": encrypted_vote_data.get("c2"),
+            "proof": encrypted_vote_data.get("proof"),
+            "voter": voter_address,
+            "reason": reason
+        }
+        
+        # Ensure all required fields are present and not None
+        if all(key in submit_data and submit_data[key] is not None for key in ["c1", "c2", "proof"]):
+            vote_result = call_backend("POST", "/api/vote", submit_data)
+            if vote_result and vote_result.get("status") == "ok":
+                print(f"✅ Encrypted vote submitted to election server")
+            else:
+                print(f"❌ Failed to submit vote to election server: {vote_result}")
+        else:
+            print(f"❌ Invalid vote data - missing required fields: {submit_data}")
+    else:
+        print(f"⚠️ Skipping ElGamal submission - encryption not available")
+    
     # Allow multiple votes - no duplicate checking
     # Each vote will be counted and added to the tally
     voter_address = "0x1234567890123456789012345678901234567890"  # Mock voter address
@@ -501,18 +591,7 @@ def handle_vote_mutation(query, variables):
         for i, proposal in enumerate(proposals_storage):
             print(f"  {i+1}. ID: {proposal.get('id')}, proposal_id: {proposal.get('proposal_id')}, title: {proposal.get('metadata', {}).get('title', 'Untitled')}")
 
-    # Send vote to backend for threshold encryption processing (if backend exists)
-    backend_vote_data = {
-        "proposal_id": proposal_id,
-        "choice": choice,
-        "reason": reason
-    }
-    backend_result = call_backend("POST", "/vote", backend_vote_data)
-    
-    if backend_result:
-        print(f"Vote sent to backend: {backend_result}")
-    else:
-        print("Backend not available, vote stored locally only")
+    # Note: ElGamal encrypted vote was already submitted above if encryption succeeded
     
     # Add minimal delay to simulate transaction processing
     import time as time_module
@@ -930,21 +1009,52 @@ async def end_voting(proposal_id: str):
     if not found_proposal:
         raise HTTPException(status_code=404, detail=f"Proposal {proposal_id} not found")
     
-    # Call backend to end voting and get final tally
+    # Trigger ElGamal threshold decryption to reveal results
+    print(f"🔐 Triggering threshold decryption for proposal {proposal_id}")
+    
     try:
-        backend_result = call_backend("POST", f"/api/end_voting", {"proposal_id": proposal_id})
-        
-        if backend_result:
-            print(f"Backend voting ended: {backend_result}")
-            # Use tally results from backend if available
-            final_tally = backend_result.get("tally", found_proposal.get("scores", [0, 0, 0]))
-        else:
-            print("Backend not available, using local vote counts")
-            # Use current local vote counts as final tally
+        # First check if there are votes to decrypt
+        votes_check = call_backend("GET", "/api/ciphertexts")
+        if not votes_check or not votes_check.get("data"):
+            print(f"⚠️ No encrypted votes found, skipping threshold decryption")
             final_tally = found_proposal.get("scores", [0, 0, 0])
+        else:
+            print(f"📊 Found {len(votes_check.get('data', []))} encrypted votes")
+            
+            # Call election server to finalize and decrypt votes
+            finalize_result = call_backend("GET", "/api/finalize")
+            
+            if finalize_result and finalize_result.get("status") == "ok":
+                print(f"✅ Threshold decryption completed!")
+                
+                # Get the decrypted result
+                final_result = finalize_result.get("result", 0)
+                total_votes = finalize_result.get("total_votes", 0)
+                valid_votes = finalize_result.get("valid_votes", 0)
+                
+                print(f"📊 Decrypted result: {final_result}")
+                print(f"📊 Total votes: {total_votes}, Valid votes: {valid_votes}")
+                
+                # Convert simple vote result to choice tallies
+                # Simple voting: result > 0 = majority For, result < 0 = majority Against, result = 0 = tie
+                if final_result > 0:
+                    # More For votes
+                    final_tally = [abs(final_result) * (10**18), 0, 0]  # Put all positive result in "For"
+                elif final_result < 0:
+                    # More Against votes  
+                    final_tally = [0, abs(final_result) * (10**18), 0]  # Put all negative result in "Against"
+                else:
+                    # Tie or all abstain
+                    final_tally = [0, 0, total_votes * (10**18)]  # Put in "Abstain"
+                    
+            else:
+                print(f"❌ Threshold decryption failed: {finalize_result}")
+                # Fall back to current local vote counts
+                final_tally = found_proposal.get("scores", [0, 0, 0])
+                
     except Exception as e:
-        print(f"Backend error during vote ending: {e}")
-        # Use current local vote counts as final tally
+        print(f"❌ Error during threshold decryption: {e}")
+        # Fall back to current local vote counts
         final_tally = found_proposal.get("scores", [0, 0, 0])
     
     # Update proposal state to "closed" and mark scores as final
@@ -1007,7 +1117,8 @@ async def list_proposals_rest():
 if __name__ == "__main__":
     import uvicorn
     print("🔌 Starting Minimal GraphQL Adapter...")
-    print("🎯 Backend URL:", VOTING_BACKEND_URL)
+    print("🎯 Election Server URL:", ELECTION_SERVER_URL)
+    print("🔑 Keyper Server URL:", KEYPER_SERVER_URL)
     print("🌐 Will serve on: http://localhost:4001")
     print("📊 GraphQL endpoint: http://localhost:4001/graphql")
     print("📡 CORS enabled for Snapshot UI")
