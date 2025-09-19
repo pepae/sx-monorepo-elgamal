@@ -298,7 +298,7 @@ def handle_propose_mutation(query: str, variables: dict):
         "snapshot": 23339662,   # Snapshot block (50 blocks earlier than start)
         "state": "active",  # Explicitly set state as active
         "vp_decimals": 18,
-        "scores": [0, 0, 0],  # Initialize scores array [For, Against, Abstain]
+        "scores": [0, 0, 0],  # Initialize scores array [For, Against, Abstain] - will be in wei
         "scores_1": "0",
         "scores_2": "0", 
         "scores_3": "0",
@@ -412,8 +412,8 @@ def handle_vote_mutation(query, variables):
     
     print(f"Processing new vote from {voter_address} on proposal {proposal_id}")
 
-    # Set voting power to 1
-    voting_power = 1
+    # Set voting power with proper decimals (18 decimals like the vp_decimals field)
+    voting_power = 10**18  # 1 token with 18 decimals = 1000000000000000000 wei
     
     # Store vote in memory
     vote_id = "0x" + secrets.token_hex(32)
@@ -432,34 +432,73 @@ def handle_vote_mutation(query, variables):
     
     # Update proposal vote counts
     global proposals_storage
+    found_proposal = None
+    
+    # Extract the actual proposal ID from the format "space_id/proposal_id" if needed
+    if "/" in proposal_id:
+        space_id, actual_id = proposal_id.split("/", 1)
+    else:
+        actual_id = proposal_id
+    
+    print(f"Looking for proposal with ID: {actual_id} (from full ID: {proposal_id})")
+    
+    # Find the proposal using flexible ID matching
     for proposal in proposals_storage:
-        if proposal["id"] == proposal_id:
-            # Initialize scores array if it doesn't exist
-            if "scores" not in proposal:
-                proposal["scores"] = [0, 0, 0]  # [For, Against, Abstain]
-            
-            # Update scores using voting power (choice 1 = For, choice 2 = Against, choice 3 = Abstain)
-            if choice == 1:
-                proposal["scores"][0] += voting_power
-                proposal["scores_1"] = str(proposal["scores"][0])
-            elif choice == 2:
-                proposal["scores"][1] += voting_power
-                proposal["scores_2"] = str(proposal["scores"][1])
-            elif choice == 3:
-                proposal["scores"][2] += voting_power
-                proposal["scores_3"] = str(proposal["scores"][2])
-            
-            # Update total score, vote count, and scores_by_strategy
-            proposal["scores_total"] = str(sum(proposal["scores"]))
-            proposal["vote_count"] = proposal.get("vote_count", 0) + 1
-            proposal["scores_by_strategy"] = [proposal["scores"]]  # Update scores_by_strategy to match scores
-            proposal["edited"] = int(time.time())  # Update edited timestamp to force UI refresh
-            
-            print(f"Updated proposal {proposal_id} scores: {proposal['scores']} (VP: {voting_power})")
-            print(f"Vote count: {proposal['vote_count']}")
-            print(f"Scores total: {proposal['scores_total']}")
-            print(f"Scores by strategy: {proposal['scores_by_strategy']}")
+        prop_full_id = proposal.get("id", "")
+        prop_numeric_id = str(proposal.get("proposal_id", ""))
+        
+        # Check if IDs match in any format
+        if (prop_full_id == proposal_id or 
+            prop_numeric_id == actual_id or
+            f"encrypted-dao/{prop_numeric_id}" == proposal_id or
+            prop_full_id.endswith(f"/{actual_id}")):
+            found_proposal = proposal
             break
+    
+    if found_proposal:
+        print(f"Found proposal: {found_proposal.get('metadata', {}).get('title', 'Untitled')}")
+        
+        # Initialize scores array if it doesn't exist
+        if "scores" not in found_proposal:
+            found_proposal["scores"] = [0, 0, 0]  # [For, Against, Abstain]
+        
+        # Update scores using voting power (choice 1 = For, choice 2 = Against, choice 3 = Abstain)
+        if choice == 1:
+            found_proposal["scores"][0] += voting_power
+            found_proposal["scores_1"] = str(int(found_proposal["scores"][0]))  # Ensure it's a positive integer string
+        elif choice == 2:
+            found_proposal["scores"][1] += voting_power
+            found_proposal["scores_2"] = str(int(found_proposal["scores"][1]))  # Ensure it's a positive integer string
+        elif choice == 3:
+            found_proposal["scores"][2] += voting_power
+            found_proposal["scores_3"] = str(int(found_proposal["scores"][2]))  # Ensure it's a positive integer string
+        
+        # Update total score, vote count, and scores_by_strategy
+        found_proposal["scores_total"] = str(sum(found_proposal["scores"]))
+        found_proposal["vote_count"] = found_proposal.get("vote_count", 0) + 1
+        found_proposal["scores_by_strategy"] = [found_proposal["scores"]]  # Update scores_by_strategy to match scores
+        found_proposal["edited"] = int(time.time())  # Update edited timestamp to force UI refresh
+        
+        # Ensure all score fields are properly set and consistent
+        found_proposal["scores_1"] = str(int(found_proposal["scores"][0])) if found_proposal["scores"][0] >= 0 else "0"
+        found_proposal["scores_2"] = str(int(found_proposal["scores"][1])) if found_proposal["scores"][1] >= 0 else "0" 
+        found_proposal["scores_3"] = str(int(found_proposal["scores"][2])) if found_proposal["scores"][2] >= 0 else "0"
+        
+        print(f"Updated proposal {proposal_id} scores: {found_proposal['scores']} (VP: {voting_power})")
+        print(f"Vote count: {found_proposal['vote_count']}")
+        print(f"Scores total: {found_proposal['scores_total']}")
+        print(f"Scores by strategy: {found_proposal['scores_by_strategy']}")
+        print(f"Individual score fields: scores_1={found_proposal.get('scores_1')}, scores_2={found_proposal.get('scores_2')}, scores_3={found_proposal.get('scores_3')}")
+        print(f"DEBUG: Full proposal scores data:")
+        print(f"  scores array: {found_proposal.get('scores')}")
+        print(f"  scores_total: {found_proposal.get('scores_total')}")
+        print(f"  scores_state: {found_proposal.get('scores_state', 'missing')}")
+        print(f"  vote_count: {found_proposal.get('vote_count')}")
+    else:
+        print(f"ERROR: Proposal not found with ID: {proposal_id} (actual_id: {actual_id})")
+        print(f"Available proposals:")
+        for i, proposal in enumerate(proposals_storage):
+            print(f"  {i+1}. ID: {proposal.get('id')}, proposal_id: {proposal.get('proposal_id')}, title: {proposal.get('metadata', {}).get('title', 'Untitled')}")
 
     # Send vote to backend for threshold encryption processing (if backend exists)
     backend_vote_data = {
@@ -750,6 +789,31 @@ def handle_proposal_query(variables: dict):
     
     if found_proposal:
         print(f">>> Found proposal: {found_proposal.get('metadata', {}).get('title', 'Untitled')}")
+        
+        # Ensure all critical fields are present for the UI calculation
+        # The UI might be using these fields even if not explicitly requested in GraphQL
+        if "scores" not in found_proposal:
+            found_proposal["scores"] = [0, 0, 0]
+        if "scores_state" not in found_proposal:
+            found_proposal["scores_state"] = "pending"
+        if "state" not in found_proposal:
+            found_proposal["state"] = "active"
+            
+        # Ensure scores_by_strategy is properly formatted
+        if "scores_by_strategy" not in found_proposal:
+            found_proposal["scores_by_strategy"] = [found_proposal["scores"]]
+            
+        # Debug: Print what we're returning to the UI
+        print(f">>> Returning proposal data:")
+        print(f"    scores: {found_proposal.get('scores')}")
+        print(f"    scores_1: {found_proposal.get('scores_1')}")
+        print(f"    scores_2: {found_proposal.get('scores_2')}")
+        print(f"    scores_3: {found_proposal.get('scores_3')}")
+        print(f"    scores_total: {found_proposal.get('scores_total')}")
+        print(f"    scores_state: {found_proposal.get('scores_state')}")
+        print(f"    state: {found_proposal.get('state')}")
+        print(f"    vote_count: {found_proposal.get('vote_count')}")
+        
         return {"data": {"proposal": found_proposal}}
     else:
         print(f">>> Proposal not found with ID: {actual_id}")
