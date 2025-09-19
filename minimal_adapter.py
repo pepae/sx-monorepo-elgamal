@@ -401,29 +401,16 @@ def handle_vote_mutation(query, variables):
 
     print(f"Vote - Proposal: {proposal_id}, Choice: {choice} ({choice_str}), Reason: {reason}")
 
-    # Check for duplicate votes from same voter
+    # Initialize votes storage if it doesn't exist
     global votes
     if "votes" not in globals():
         votes = []
     
-    # Check if this voter already voted on this proposal
+    # Allow multiple votes - no duplicate checking
+    # Each vote will be counted and added to the tally
     voter_address = "0x1234567890123456789012345678901234567890"  # Mock voter address
-    existing_vote = None
-    for vote in votes:
-        if vote["proposal_id"] == proposal_id and vote["voter"] == voter_address:
-            existing_vote = vote
-            break
     
-    if existing_vote:
-        print(f"Voter {voter_address} already voted on proposal {proposal_id}")
-        return {
-            "data": {
-                "vote": {
-                    "id": existing_vote["id"],
-                    "txHash": "0x" + secrets.token_hex(32)  # Return existing vote
-                }
-            }
-        }
+    print(f"Processing new vote from {voter_address} on proposal {proposal_id}")
 
     # Set voting power to 1
     voting_power = 1
