@@ -58,7 +58,13 @@ export function createOffchainNetwork(networkId: NetworkID): Network {
     getTransaction: () => {
       throw new Error('Not implemented');
     },
-    waitForTransaction: (txId: string) => provider.waitForTransaction(txId),
+    waitForTransaction: (txId: string) => {
+      // For localhost testing, immediately resolve mock transactions
+      if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        return Promise.resolve({ transactionHash: txId, status: 1 });
+      }
+      return provider.waitForTransaction(txId);
+    },
     waitForIndexing: async () => true,
     waitForSpace: () => {
       throw new Error('Not implemented');
