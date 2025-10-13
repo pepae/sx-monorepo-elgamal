@@ -531,6 +531,7 @@ def handle_vote_mutation(query, variables):
             encrypted_vote_data = {"vote_value": vote_value, "encrypted": False}
     
     # Submit encrypted vote to election server
+    proof_verified = False
     if encrypted_vote_data.get("encrypted", False):
         # Only submit to ElGamal server if encryption succeeded
         submit_data = {
@@ -546,6 +547,11 @@ def handle_vote_mutation(query, variables):
             vote_result = call_backend("POST", "/api/vote", submit_data)
             if vote_result and vote_result.get("status") == "ok":
                 print(f"✅ Encrypted vote submitted to election server")
+                proof_verified = vote_result.get("proof_valid", True)  # Get verification status
+                if proof_verified:
+                    print(f"✅ Zero-knowledge proof verified by election server")
+                else:
+                    print(f"⚠️ Zero-knowledge proof verification failed")
             else:
                 print(f"❌ Failed to submit vote to election server: {vote_result}")
         else:
@@ -563,16 +569,50 @@ def handle_vote_mutation(query, variables):
     # Set voting power with proper decimals (18 decimals like the vp_decimals field)
     voting_power = 10**18  # 1 token with 18 decimals = 1000000000000000000 wei
     
+    # Find the actual proposal to get both hex ID and numeric ID
+    found_proposal = None
+    if "/" in proposal_id:
+        space_id, actual_id = proposal_id.split("/", 1)
+    else:
+        actual_id = proposal_id
+    
+    # Find the proposal
+    for proposal in proposals_storage:
+        prop_full_id = proposal.get("id", "")
+        prop_numeric_id = str(proposal.get("proposal_id", ""))
+        
+        if (prop_full_id == proposal_id or 
+            prop_numeric_id == actual_id or
+            f"encrypted-dao/{prop_numeric_id}" == proposal_id or
+            prop_full_id.endswith(f"/{actual_id}")):
+            found_proposal = proposal
+            break
+    
+    # Get the numeric proposal ID for storage
+    if found_proposal:
+        numeric_proposal_id = found_proposal.get("proposal_id")
+        hex_proposal_id = found_proposal.get("id")
+    else:
+        # Fallback: try to parse as numeric
+        try:
+            numeric_proposal_id = int(actual_id)
+            hex_proposal_id = proposal_id
+        except ValueError:
+            numeric_proposal_id = proposal_id
+            hex_proposal_id = proposal_id
+    
     # Store vote in memory (but don't update proposal scores)
     # CRITICAL: Never store plaintext choice - only ciphertext and proof
     vote_id = "0x" + secrets.token_hex(32)
     vote_data = {
         "id": vote_id,
-        "proposal_id": proposal_id,
+        "proposal_id": numeric_proposal_id,  # Store numeric ID for easy filtering
+        "proposal_hex_id": hex_proposal_id,  # Store hex ID for reference
         # REMOVED: "choice" field - never store plaintext vote
         "c1": encrypted_vote_data.get("c1") if encrypted_vote_data.get("encrypted") else None,
         "c2": encrypted_vote_data.get("c2") if encrypted_vote_data.get("encrypted") else None,
         "proof": encrypted_vote_data.get("proof") if encrypted_vote_data.get("encrypted") else None,
+        "proof_verified": proof_verified,  # ZK proof verification status
         "reason": reason,
         "voter": "0x1234567890123456789012345678901234567890",  # Mock voter address
         "vp": voting_power,  # Voting power
@@ -584,32 +624,9 @@ def handle_vote_mutation(query, variables):
     votes.append(vote_data)
     
     print(f"🔒 Vote stored with ONLY encrypted ciphertext - plaintext choice never stored or transmitted")
+    print(f"   Stored proposal_id: {numeric_proposal_id} (numeric), {hex_proposal_id} (hex)")
     
     # Update proposal vote counts BUT NOT SCORES (to preserve privacy)
-    global proposals_storage
-    found_proposal = None
-    
-    # Extract the actual proposal ID from the format "space_id/proposal_id" if needed
-    if "/" in proposal_id:
-        space_id, actual_id = proposal_id.split("/", 1)
-    else:
-        actual_id = proposal_id
-    
-    print(f"Looking for proposal with ID: {actual_id} (from full ID: {proposal_id})")
-    
-    # Find the proposal using flexible ID matching
-    for proposal in proposals_storage:
-        prop_full_id = proposal.get("id", "")
-        prop_numeric_id = str(proposal.get("proposal_id", ""))
-        
-        # Check if IDs match in any format
-        if (prop_full_id == proposal_id or 
-            prop_numeric_id == actual_id or
-            f"encrypted-dao/{prop_numeric_id}" == proposal_id or
-            prop_full_id.endswith(f"/{actual_id}")):
-            found_proposal = proposal
-            break
-    
     if found_proposal:
         print(f"Found proposal: {found_proposal.get('metadata', {}).get('title', 'Untitled')}")
         
@@ -622,7 +639,7 @@ def handle_vote_mutation(query, variables):
         print(f"Vote count: {found_proposal['vote_count']} (scores hidden until finalization)")
         print(f"🔒 Privacy preserved: vote tallies will be revealed only after threshold decryption")
     else:
-        print(f"ERROR: Proposal not found with ID: {proposal_id} (actual_id: {actual_id})")
+        print(f"ERROR: Proposal not found with ID: {proposal_id}")
         print(f"Available proposals:")
         for i, proposal in enumerate(proposals_storage):
             print(f"  {i+1}. ID: {proposal.get('id')}, proposal_id: {proposal.get('proposal_id')}, title: {proposal.get('metadata', {}).get('title', 'Untitled')}")
@@ -938,32 +955,114 @@ def handle_proposal_query(variables: dict):
     return {"data": {"proposal": proposal}}
 
 def handle_votes_query(variables: dict):
-    """Handle votes query"""
+    """Handle votes query - return encrypted votes with ciphertexts"""
     
-    votes_resp = call_backend("GET", "/api/ciphertexts")
-    if not votes_resp:
-        return {"data": {"votes": []}}
+    print(f">>> Votes query called with variables: {variables}")
     
-    votes_data = votes_resp.get("data", [])
+    # Get votes from local storage
+    global votes
+    if "votes" not in globals():
+        votes = []
     
-    votes = []
-    for vote_data in votes_data:
+    print(f">>> Current votes in storage: {len(votes)}")
+    for v in votes:
+        print(f"    Vote ID: {v.get('id')}, Proposal ID: {v.get('proposal_id')}, Voter: {v.get('voter')}")
+    
+    # Apply filters from the where clause
+    filtered_votes = votes
+    where_clause = variables.get('where', {})
+    
+    if 'proposal' in where_clause:
+        proposal_filter = where_clause['proposal']
+        print(f">>> Filtering votes by proposal: {proposal_filter} (type: {type(proposal_filter)})")
+        
+        # Handle both numeric and string proposal IDs
+        # The filter might be a number like 1760359507 or a string like "0x..." or "encrypted-dao/0x..."
+        def matches_proposal(vote_proposal_id):
+            # Try direct match
+            if vote_proposal_id == proposal_filter:
+                return True
+            # Try string comparison
+            if str(vote_proposal_id) == str(proposal_filter):
+                return True
+            # Try numeric comparison if filter is numeric
+            if isinstance(proposal_filter, int):
+                # Check if vote_proposal_id is a string that contains the numeric ID
+                if "/" in str(vote_proposal_id):
+                    # Format like "encrypted-dao/0x..."
+                    parts = str(vote_proposal_id).split("/")
+                    if len(parts) > 1:
+                        # Try to extract numeric ID from hex or use the hex directly
+                        return False  # These are hex IDs, not numeric
+                else:
+                    # Try numeric comparison
+                    try:
+                        return int(vote_proposal_id) == proposal_filter
+                    except (ValueError, TypeError):
+                        return False
+            # Try hex ID comparison if filter is hex
+            if isinstance(proposal_filter, str) and proposal_filter.startswith("0x"):
+                if "/" in str(vote_proposal_id):
+                    parts = str(vote_proposal_id).split("/")
+                    return len(parts) > 1 and parts[1] == proposal_filter
+                return str(vote_proposal_id) == proposal_filter
+            return False
+        
+        filtered_votes = [v for v in filtered_votes if matches_proposal(v.get('proposal_id'))]
+        print(f">>> After filter: {len(filtered_votes)} votes")
+    
+    # Format votes for GraphQL response
+    formatted_votes = []
+    for vote_data in filtered_votes:
+        # Debug: Print the vote data being processed
+        print(f">>> Processing vote: {vote_data.get('id')}")
+        print(f"    encrypted: {vote_data.get('encrypted')}")
+        print(f"    c1: {vote_data.get('c1')[:50] if vote_data.get('c1') else 'None'}...")
+        print(f"    c2: {vote_data.get('c2')[:50] if vote_data.get('c2') else 'None'}...")
+        print(f"    proof_verified: {vote_data.get('proof_verified')}")
+        
+        # Build the vote object matching Snapshot's schema
+        # IMPORTANT: Include reason at top level AND in metadata for compatibility
+        metadata_obj = {
+            "id": vote_data.get("id", ""),
+            "reason": vote_data.get("reason", ""),
+            "encrypted": vote_data.get("encrypted", False),
+            "c1": vote_data.get("c1"),
+            "c2": vote_data.get("c2"),
+            "proof": vote_data.get("proof"),
+            "proof_verified": vote_data.get("proof_verified", False)
+        }
+        
         vote = {
             "id": vote_data.get("id", "0x" + secrets.token_hex(32)),
-            "voter": vote_data.get("voter", "0x" + secrets.token_hex(20)),
+            "voter": {
+                "id": vote_data.get("voter", "0x" + secrets.token_hex(20)),
+                "address_type": 1
+            },
+            "space": {
+                "id": "encrypted-dao"
+            },
             "created": vote_data.get("created", int(time.time())),
-            "choice": vote_data.get("choice", 1),
-            "reason": vote_data.get("reason", ""),
-            "vp": 1.0,
-            "vp_by_strategy": [1.0],
+            "vp": vote_data.get("vp", 10**18) / 10**18,  # Convert from wei to token amount
+            "vp_parsed": vote_data.get("vp", 10**18) / 10**18,
+            "vp_by_strategy": [vote_data.get("vp", 10**18) / 10**18],
             "vp_state": "final",
-            "proposal": {
-                "id": "0x" + secrets.token_hex(32)
-            }
+            "proposal": vote_data.get("proposal_id", 0),  # Must be Int not object
+            "choice": 1,  # Dummy value since actual choice is encrypted
+            "tx": vote_data.get("id", "0x" + secrets.token_hex(32)),  # Use vote ID as tx hash
+            "reason": vote_data.get("reason", ""),  # Include reason at top level too
+            "metadata": metadata_obj  # Include encrypted data in metadata for display
         }
-        votes.append(vote)
+        # NOTE: We intentionally DO NOT include the plaintext "choice" field
+        # to preserve vote privacy - only ciphertext is stored and transmitted
+        
+        print(f">>> Formatted vote metadata: {vote['metadata']}")
+        print(f">>> Formatted vote keys: {list(vote.keys())}")
+        formatted_votes.append(vote)
     
-    return {"data": {"votes": votes}}
+    print(f">>> Returning {len(formatted_votes)} votes")
+    
+    return {"data": {"votes": formatted_votes}}
 
 @app.get("/")
 async def root():
@@ -1773,6 +1872,8 @@ async def admin_reset_election():
 async def admin_get_proposal_votes(proposal_id: str):
     """Admin API: Get votes for a specific proposal"""
     
+    print(f">>> Admin: Getting votes for proposal {proposal_id}")
+    
     # Find the proposal
     found_proposal = None
     for proposal in proposals_storage:
@@ -1793,17 +1894,35 @@ async def admin_get_proposal_votes(proposal_id: str):
             "error": f"Proposal {proposal_id} not found"
         }
     
+    # Get the proposal title first
+    proposal_title = found_proposal.get("metadata", {}).get("title", "Untitled")
+    
     # Get votes for this proposal from global votes storage
     proposal_votes = []
     global votes
     if "votes" in globals():
+        # Convert proposal_id to both int and str for comparison
+        try:
+            proposal_id_int = int(proposal_id)
+        except ValueError:
+            proposal_id_int = None
+        
+        numeric_proposal_id = found_proposal.get("proposal_id")
+        
         for vote in votes:
-            if (vote.get("proposal_id") == proposal_id or 
-                vote.get("proposal_id") == found_proposal.get("id") or
-                vote.get("proposal_id") == str(found_proposal.get("proposal_id"))):
+            vote_proposal_id = vote.get("proposal_id")
+            # Compare with type conversion
+            if (vote_proposal_id == proposal_id or 
+                vote_proposal_id == proposal_id_int or
+                vote_proposal_id == numeric_proposal_id or
+                str(vote_proposal_id) == proposal_id or
+                vote.get("proposal_hex_id") == found_proposal.get("id")):
                 proposal_votes.append(vote)
     
-    proposal_title = found_proposal.get("metadata", {}).get("title", "Untitled")
+    print(f">>> Admin: Found {len(proposal_votes)} votes for proposal {proposal_id}")
+    print(f">>> Admin: Proposal title: {proposal_title}")
+    for vote in proposal_votes:
+        print(f"    Vote: {vote.get('id')[:16]}... from {vote.get('voter')[:16]}... encrypted={vote.get('encrypted')}")
     
     return {
         "votes": proposal_votes,

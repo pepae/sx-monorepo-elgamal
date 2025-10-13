@@ -183,14 +183,11 @@ function handleScrollEvent(target: HTMLElement) {
               />
             </div>
           </AppLink>
-          <button
-            type="button"
-            class="grow w-[40%] flex flex-col items-start justify-center truncate leading-[22px]"
-            :disabled="!vote.reason"
-            @click="handleChoiceClick(vote)"
+          <div
+            class="grow w-[40%] flex flex-col items-start justify-center leading-[22px] py-3"
           >
             <ProposalVoteChoice :proposal="proposal" :vote="vote" />
-          </button>
+          </div>
           <div
             class="leading-[22px] max-w-[144px] w-[144px] flex flex-col justify-center truncate"
           >

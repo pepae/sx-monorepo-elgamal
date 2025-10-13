@@ -514,7 +514,8 @@ export function createApi(
             ...vote.voter,
             name: names[vote.voter.id]
           },
-          reason: metadata?.reason
+          reason: metadata?.reason,
+          metadata: metadata  // Keep full metadata with encrypted fields
         };
 
         return processedVote;

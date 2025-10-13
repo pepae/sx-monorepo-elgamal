@@ -17,10 +17,55 @@ withDefaults(
 <template>
   <div
     v-if="proposal.privacy !== 'none' && !proposal.completed"
-    class="flex gap-1 items-center"
+    class="flex flex-col gap-1 items-start w-full"
   >
-    <span class="text-skin-heading leading-[22px]">Encrypted choice</span>
-    <IH-lock-closed class="size-[16px] shrink-0" />
+    <div class="flex gap-1 items-center">
+      <span class="text-skin-heading leading-[22px]">Encrypted choice</span>
+      <IH-lock-closed class="size-[16px] shrink-0" />
+    </div>
+    <!-- Show ciphertext if available -->
+    <div 
+      v-if="vote.metadata && (vote.metadata.c1 || vote.metadata.c2)"
+      class="text-[14px] text-skin-text font-mono w-full"
+    >
+      <div class="flex items-center gap-1 mb-0.5">
+        <span class="font-semibold text-[12px] uppercase tracking-wide">Ciphertext:</span>
+      </div>
+      <div v-if="vote.metadata.c1" class="text-[11px] opacity-70 break-all">
+        c1: {{ vote.metadata.c1.substring(0, 32) }}...
+      </div>
+      <div v-if="vote.metadata.c2" class="text-[11px] opacity-70 break-all">
+        c2: {{ vote.metadata.c2.substring(0, 32) }}...
+      </div>
+      <div 
+        v-if="vote.metadata.proof_verified === true"
+        class="flex items-center gap-1 mt-1 text-[11px]"
+      >
+        <IH-check-circle class="size-[14px] text-green-500 shrink-0" />
+        <span class="text-green-500">ZK proof verified</span>
+      </div>
+      <div 
+        v-else-if="vote.metadata.proof_verified === false"
+        class="flex items-center gap-1 mt-1 text-[11px]"
+      >
+        <IH-x-circle class="size-[14px] text-orange-500 shrink-0" />
+        <span class="text-orange-500">ZK proof failed</span>
+      </div>
+      <div 
+        v-else-if="vote.metadata.proof"
+        class="flex items-center gap-1 mt-1 text-[11px]"
+      >
+        <IH-clock class="size-[14px] text-orange-500 shrink-0" />
+        <span class="text-orange-500">ZK proof pending</span>
+      </div>
+    </div>
+    <!-- Show if no encrypted data -->
+    <div 
+      v-else-if="vote.metadata && vote.metadata.encrypted === false"
+      class="text-[11px] text-orange-500"
+    >
+      ⚠️ Vote not encrypted (ElGamal server was not available)
+    </div>
   </div>
   <div v-else class="flex flex-col max-w-full truncate items-start">
     <UiTooltip

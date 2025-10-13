@@ -364,6 +364,16 @@ type VoteMetadataItem {
   id: String!
   "Optional reason provided by the voter"
   reason: Text!
+  "Whether the vote is encrypted"
+  encrypted: Boolean
+  "ElGamal ciphertext component 1"
+  c1: String
+  "ElGamal ciphertext component 2"
+  c2: String
+  "Zero-knowledge proof"
+  proof: String
+  "Whether the ZK proof has been verified"
+  proof_verified: Boolean
 }
 
 """

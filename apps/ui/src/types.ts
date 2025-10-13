@@ -408,6 +408,15 @@ export type Vote = {
   reason?: string;
   created: number;
   tx: string;
+  metadata?: {
+    id?: string | null;
+    reason?: string | null;
+    encrypted?: boolean | null;
+    c1?: string | null;
+    c2?: string | null;
+    proof?: string | null;
+    proof_verified?: boolean | null;
+  } | null;
 };
 
 export type Member = {

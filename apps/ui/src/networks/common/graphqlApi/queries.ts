@@ -11,6 +11,11 @@ gql(`
     }
     metadata {
       reason
+      encrypted
+      c1
+      c2
+      proof
+      proof_verified
     }
     proposal
     choice
