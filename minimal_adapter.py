@@ -32,6 +32,8 @@ except ImportError as e:
 ELECTION_SERVER_URL = "http://localhost:5000"  # ElGamal election server
 KEYPER_SERVER_URL = "http://localhost:5001"    # Keyper threshold server
 DEFAULT_SPACE_ID = "encrypted-dao.eth"
+RPC_URL = "https://eth.llamarpc.com"  # Public Ethereum RPC (LlamaRPC)
+RPC_FALLBACK = "https://cloudflare-eth.com"  # Fallback RPC
 
 # Consistent addresses for space and proposals - Use known strategy names
 SPACE_CONTROLLER = "0x" + secrets.token_hex(20)
@@ -75,6 +77,41 @@ def call_backend(method: str, endpoint: str, data: dict = None) -> dict:
     except Exception as e:
         print(f"Backend communication error: {e}")
         return None
+
+def get_eth_block_number(rpc_url=RPC_URL, timeout=10):
+    """Get the current Ethereum block number from RPC."""
+    rpcs_to_try = [rpc_url, RPC_FALLBACK] if rpc_url != RPC_FALLBACK else [rpc_url]
+    
+    for rpc in rpcs_to_try:
+        try:
+            payload = {"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": 1}
+            resp = requests.post(rpc, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            j = resp.json()
+            
+            # Check for error in response
+            if "error" in j:
+                print(f"⚠️ RPC error from {rpc}: {j['error']}")
+                continue
+                
+            # result is hex string like "0xA1B2C"
+            hex_block = j.get("result")
+            if not hex_block:
+                print(f"⚠️ No result in RPC response from {rpc}: {j}")
+                continue
+                
+            block_number = int(hex_block, 16)
+            print(f"📊 Current Ethereum block number: {block_number} (from {rpc})")
+            return block_number
+        except Exception as e:
+            print(f"⚠️ Failed to get Ethereum block number from {rpc}: {e}")
+            continue
+    
+    # All RPCs failed, use fallback
+    print(f"⚠️ All RPC endpoints failed, falling back to approximate block number")
+    # Fallback to approximate block (assuming ~12s block time)
+    # As of Oct 2025, we're approximately at block 23.5M
+    return 23568000
 
 @app.post("/graphql")
 async def graphql_endpoint(request: dict):
@@ -225,6 +262,25 @@ def handle_propose_mutation(query: str, variables: dict):
     
     # Create the full proposal object for storage - match GraphQL proposalFields fragment
     proposal_hex_id = "0x" + secrets.token_hex(32)
+    
+    # Get real Ethereum block numbers
+    print(f"🌐 Fetching current Ethereum block number...")
+    current_block = get_eth_block_number()
+    
+    # Calculate block numbers for the proposal
+    # Ethereum produces ~7200 blocks per day (12 second block time)
+    snapshot_block = current_block - 50  # Snapshot 50 blocks ago (~10 minutes)
+    start_block = current_block  # Start now (current block)
+    min_end_block = current_block + 7200  # Min end 1 day from now
+    max_end_block = current_block + 50400  # Max end 7 days from now
+    
+    print(f"📊 Block numbers for proposal:")
+    print(f"   Current: {current_block}")
+    print(f"   Snapshot: {snapshot_block}")
+    print(f"   Start: {start_block}")
+    print(f"   Min End: {min_end_block} (+7200 blocks, ~1 day)")
+    print(f"   Max End: {max_end_block} (+50400 blocks, ~7 days)")
+    
     full_proposal = {
         "id": proposal_hex_id,  # Use hex ID like real Snapshot
         "proposal_id": int(proposal_id),
@@ -313,10 +369,10 @@ def handle_propose_mutation(query: str, variables: dict):
             "choices": choices,
             "labels": []
         },
-        "start": 23339712,      # Last finalized Ethereum block (Sep 2025)
-        "min_end": 23339812,    # Future block for min end (about 20 minutes later)
-        "max_end": 23550012,    # Future block for max end (about 1 hour later)
-        "snapshot": 23339662,   # Snapshot block (50 blocks earlier than start)
+        "start": start_block,
+        "min_end": min_end_block,
+        "max_end": max_end_block,
+        "snapshot": snapshot_block,
         "state": "active",  # Explicitly set state as active
         "vp_decimals": 18,
         "scores": [0, 0, 0],  # Keep at zero until finalization (privacy preserved)
@@ -359,13 +415,13 @@ def handle_propose_mutation(query: str, variables: dict):
     }
     
     # DEBUG: Print the actual timing values being stored
-    print(f">>> STORED TIMING VALUES (Last finalized Sep 2025 block numbers for eth network):")
-    print(f"    current_time: {current_time}")
-    print(f"    start: 23339712 (last finalized block - Sep 2025)")
-    print(f"    min_end: 23339812 (future block - ~20 min later)") 
-    print(f"    max_end: 23350012 (future block - ~1 hr later)")
-    print(f"    created: {int(time.time())} (current Unix timestamp for created)")
-    print(f"    snapshot: 23339662 (snapshot block - 50 blocks ago)")
+    print(f">>> STORED TIMING VALUES (Real Ethereum block numbers):")
+    print(f"    current_time: {current_time} (Unix timestamp)")
+    print(f"    start: {start_block} (current block)")
+    print(f"    min_end: {min_end_block} (current + 7200 blocks, ~1 day)")
+    print(f"    max_end: {max_end_block} (current + 50400 blocks, ~7 days)")
+    print(f"    created: {int(time.time())} (current Unix timestamp)")
+    print(f"    snapshot: {snapshot_block} (current - 50 blocks)")
     
     # Store the proposal in memory
     proposals_storage.append(full_proposal)
@@ -1033,8 +1089,10 @@ async def end_voting(proposal_id: str):
     
     # Update proposal state to "closed" and mark scores as final
     current_time = int(time.time())
-    # Use block numbers that are in the past (earlier than start block)
-    past_block = 23339700  # Block number before the start block (23339712)
+    # Get current block and use it as the end block (proposal has ended)
+    current_block = get_eth_block_number()
+    print(f"📊 Closing proposal at block {current_block}")
+    
     found_proposal.update({
         "state": "closed",
         "scores_state": "final",
@@ -1044,8 +1102,8 @@ async def end_voting(proposal_id: str):
         "scores_3": str(final_tally[2]) if len(final_tally) > 2 else "0",
         "scores_total": str(sum(final_tally)),
         "scores_by_strategy": [final_tally],
-        "min_end": past_block,  # Set end block to past so it shows as ended
-        "max_end": past_block,
+        "min_end": current_block,  # Set end block to current block
+        "max_end": current_block,  # Set end block to current block
         "edited": current_time,  # Force UI refresh
         "execution_ready": True,  # Mark as ready for execution if needed
     })
