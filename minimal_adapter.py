@@ -1154,637 +1154,410 @@ async def list_proposals_rest():
 
 @app.get("/admin")
 async def admin_dashboard():
-    """Admin dashboard HTML page"""
+    """Admin dashboard HTML page - Auto-loads all data on page load"""
     html_content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ElGamal Voting Admin Dashboard</title>
+    <title>🔐 ElGamal Voting Admin</title>
     <style>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: #f6f7f9;
+            padding: 0;
+            color: #111827;
+            line-height: 1.6;
+        }
+        .header {
+            background: white;
+            border-bottom: 1px solid #e5e7eb;
+            padding: 20px 0;
+            margin-bottom: 32px;
+        }
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #111827;
+            letter-spacing: -0.02em;
         }
         .container {
             max-width: 1200px;
             margin: 0 auto;
+            padding: 0 20px 40px;
+        }
+        .proposal {
             background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            padding: 20px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: box-shadow 0.2s;
         }
-        h1 {
-            color: #333;
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #007bff;
-            padding-bottom: 10px;
+        .proposal:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
-        .section {
-            margin-bottom: 30px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            background: #fafafa;
-        }
-        .section h2 {
-            color: #007bff;
-            margin-top: 0;
-            margin-bottom: 15px;
-        }
-        button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-        }
-        button:hover {
-            background: #0056b3;
-        }
-        button.danger {
-            background: #dc3545;
-        }
-        button.danger:hover {
-            background: #c82333;
-        }
-        button.success {
-            background: #28a745;
-        }
-        button.success:hover {
-            background: #218838;
-        }
-        .data-display {
-            background: white;
-            border: 1px solid #ccc;
-            padding: 15px;
-            border-radius: 4px;
-            margin-top: 15px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        .proposal-card {
-            border: 1px solid #ddd;
-            border-radius: 6px;
-            padding: 15px;
-            margin-bottom: 15px;
-            background: white;
+        .proposal-header {
+            border-bottom: 1px solid #f3f4f6;
+            padding-bottom: 16px;
+            margin-bottom: 16px;
         }
         .proposal-title {
-            font-weight: bold;
-            color: #333;
-            margin-bottom: 10px;
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: #111827;
+            letter-spacing: -0.01em;
         }
-        .proposal-meta {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
+        .meta {
+            font-size: 0.875rem;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .meta-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .badge-active { 
+            background: #111827; 
+            color: white; 
+        }
+        .badge-closed { 
+            background: #f3f4f6; 
+            color: #6b7280; 
+        }
+        .badge-hidden { 
+            background: #f3f4f6; 
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+        }
+        .badge-final { 
+            background: #111827; 
+            color: white; 
         }
         .scores {
-            display: flex;
-            gap: 20px;
-            margin-bottom: 10px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin: 20px 0;
         }
-        .score-item {
-            background: #f8f9fa;
-            padding: 8px 12px;
-            border-radius: 4px;
-            border: 1px solid #dee2e6;
+        .score-box {
+            background: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #e5e7eb;
         }
-        .vote-card {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 10px;
-            background: #f8f9fa;
-        }
-        .ciphertext {
-            font-family: monospace;
-            font-size: 12px;
-            background: #e9ecef;
-            padding: 5px;
-            border-radius: 3px;
-            word-break: break-all;
-            margin-top: 5px;
-        }
-        .status-indicator {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: bold;
+        .score-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            margin-bottom: 8px;
+            font-weight: 500;
             text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
-        .status-active {
-            background: #d4edda;
-            color: #155724;
+        .score-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #111827;
         }
-        .status-closed {
-            background: #f8d7da;
-            color: #721c24;
+        .votes-section {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #f3f4f6;
         }
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
+        .votes-section h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #111827;
         }
-        .status-final {
-            background: #d1ecf1;
-            color: #0c5460;
+        .vote {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+        }
+        .vote-header {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #111827;
+            font-size: 0.875rem;
+        }
+        .vote-meta {
+            font-size: 0.8125rem;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        .cipher {
+            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+            font-size: 0.75rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 12px;
+            word-break: break-all;
+            color: #374151;
+            line-height: 1.5;
+        }
+        button {
+            background: #111827;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-top: 12px;
+            transition: all 0.15s;
+            letter-spacing: 0.01em;
+        }
+        button:hover {
+            background: #000000;
+            transform: translateY(-1px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button.finalize {
+            background: white;
+            color: #111827;
+            border: 1px solid #e5e7eb;
+        }
+        button.finalize:hover {
+            background: #f9fafb;
+            border-color: #111827;
         }
         .loading {
             text-align: center;
-            color: #666;
-            font-style: italic;
+            padding: 60px 20px;
+            color: #6b7280;
+            font-size: 0.875rem;
         }
-        .error {
-            color: #dc3545;
-            background: #f8d7da;
-            border: 1px solid #f5c6cb;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 10px;
-        }
-        .success {
-            color: #155724;
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 10px;
-        }
-        .refresh-note {
-            color: #666;
-            font-style: italic;
-            margin-top: 10px;
-        }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        .stat-card {
-            background: white;
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid #ddd;
+        .empty {
             text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+            background: #f9fafb;
+            border: 1px dashed #e5e7eb;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 0.875rem;
         }
-        .stat-number {
-            font-size: 2em;
-            font-weight: bold;
-            color: #007bff;
+        .hidden-text {
+            color: #6b7280;
+            font-weight: 500;
         }
-        .stat-label {
-            color: #666;
-            margin-top: 5px;
+        .lock-icon {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid currentColor;
+            border-radius: 3px;
+            position: relative;
+            margin-right: 4px;
+        }
+        .lock-icon::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 1px;
+            width: 6px;
+            height: 6px;
+            border: 2px solid currentColor;
+            border-bottom: none;
+            border-radius: 3px 3px 0 0;
         }
     </style>
 </head>
 <body>
+    <div class="header">
+        <div class="header-content">
+            <h1>Admin Dashboard</h1>
+        </div>
+    </div>
     <div class="container">
-        <h1>🔐 ElGamal Voting Admin Dashboard</h1>
-        
-        <!-- Stats Overview -->
-        <div class="section">
-            <h2>📊 System Overview</h2>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number" id="total-proposals">-</div>
-                    <div class="stat-label">Total Proposals</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="total-votes">-</div>
-                    <div class="stat-label">Total Votes</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="encrypted-votes">-</div>
-                    <div class="stat-label">Encrypted Votes</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" id="backend-status">-</div>
-                    <div class="stat-label">Backend Status</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Proposals Section -->
-        <div class="section">
-            <h2>📋 Proposals</h2>
-            <button onclick="loadProposals()">🔄 Refresh Proposals</button>
-            <div id="proposals-data" class="data-display">
-                <div class="loading">Click refresh to load proposals...</div>
-            </div>
-        </div>
-
-        <!-- Encrypted Votes Section -->
-        <div class="section">
-            <h2>🔒 Encrypted Votes & Ciphertexts</h2>
-            <button onclick="loadCiphertexts()">🔄 Load Ciphertexts</button>
-            <button onclick="verifyProofs()" class="success">✅ Verify All Proofs</button>
-            <div id="ciphertexts-data" class="data-display">
-                <div class="loading">Click load to inspect encrypted votes...</div>
-            </div>
-        </div>
-
-        <!-- Election Management -->
-        <div class="section">
-            <h2>⚙️ Election Management</h2>
-            <button onclick="checkElectionStatus()">📊 Check Election Status</button>
-            <button onclick="resetElection()" class="danger">🔄 Reset Election</button>
-            <div id="election-status" class="data-display">
-                <div class="loading">Click check status to view election state...</div>
-            </div>
-        </div>
-
-        <!-- Threshold Decryption -->
-        <div class="section">
-            <h2>🔓 Threshold Decryption & Results</h2>
-            <p>Finalize proposals to trigger threshold decryption and reveal final results.</p>
-            <div id="finalization-controls"></div>
-            <div id="finalization-results" class="data-display">
-                <div class="loading">Finalization results will appear here...</div>
-            </div>
+        <div id="content">
+            <div class="loading">Loading proposals...</div>
         </div>
     </div>
 
     <script>
-        const API_BASE = '';
-        let currentProposals = [];
-
-        // Load overview statistics
-        async function loadStats() {
-            try {
-                const [proposalsResp, statusResp, ciphertextsResp] = await Promise.all([
-                    fetch('/api/admin/proposals').then(r => r.json()),
-                    fetch('/api/admin/election-status').then(r => r.json()),
-                    fetch('/api/admin/ciphertexts').then(r => r.json())
-                ]);
-
-                document.getElementById('total-proposals').textContent = proposalsResp.count || 0;
-                document.getElementById('total-votes').textContent = proposalsResp.proposals.reduce((sum, p) => sum + (p.vote_count || 0), 0);
-                document.getElementById('encrypted-votes').textContent = ciphertextsResp.count || 0;
-                document.getElementById('backend-status').textContent = statusResp.backend_connected ? '✅' : '❌';
-            } catch (error) {
-                console.error('Failed to load stats:', error);
-            }
+        // Format large numbers
+        function formatScore(score) {
+            if (!score || score === 0) return '0';
+            if (score >= 1e18) return (score / 1e18).toFixed(2);
+            return score.toString();
         }
 
-        // Load proposals
-        async function loadProposals() {
-            const container = document.getElementById('proposals-data');
-            container.innerHTML = '<div class="loading">Loading proposals...</div>';
+        // Format timestamp
+        function formatTime(timestamp) {
+            const date = new Date(timestamp * 1000);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} ${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+        }
+
+        // Load everything on page load
+        async function loadAll() {
+            const container = document.getElementById('content');
+            container.innerHTML = '<div class="loading">Loading proposals and votes...</div>';
 
             try {
-                const response = await fetch('/api/admin/proposals');
-                const data = await response.json();
-                currentProposals = data.proposals;
+                // Load proposals first
+                const proposalsResp = await fetch('/api/admin/proposals');
+                const proposalsData = await proposalsResp.json();
 
-                if (data.proposals.length === 0) {
-                    container.innerHTML = '<div class="loading">No proposals found.</div>';
+                if (proposalsData.proposals.length === 0) {
+                    container.innerHTML = '<div class="empty">No proposals yet. Create one in the Snapshot UI.</div>';
                     return;
                 }
 
                 let html = '';
-                data.proposals.forEach(proposal => {
-                    const statusClass = proposal.state === 'active' ? 'status-active' : 'status-closed';
-                    const scoresClass = proposal.scores_state === 'final' ? 'status-final' : 
-                                       proposal.scores_state === 'hidden' ? 'status-pending' : 'status-pending';
-                    
-                    // Hide scores if they're not finalized (privacy preservation)
+
+                // Load votes for each proposal
+                for (const proposal of proposalsData.proposals) {
+                    const votesResp = await fetch(`/api/admin/proposal-votes/${proposal.id}`);
+                    const votesData = await votesResp.json();
+
+                    const stateClass = proposal.state === 'active' ? 'badge-active' : 'badge-closed';
+                    const scoresClass = proposal.scores_state === 'final' ? 'badge-final' : 'badge-hidden';
                     const showScores = proposal.scores_state === 'final';
-                    const scoreDisplay = showScores ? 
-                        `<div class="scores">
-                            <div class="score-item">For: ${formatScore(proposal.scores[0])}</div>
-                            <div class="score-item">Against: ${formatScore(proposal.scores[1])}</div>
-                            <div class="score-item">Abstain: ${formatScore(proposal.scores[2])}</div>
-                        </div>` :
-                        `<div class="scores">
-                            <div class="score-item">🔒 Scores Hidden (Encrypted Voting)</div>
-                        </div>`;
-                    
+
                     html += `
-                        <div class="proposal-card">
-                            <div class="proposal-title">${proposal.title}</div>
-                            <div class="proposal-meta">
-                                ID: ${proposal.id} | 
-                                State: <span class="status-indicator ${statusClass}">${proposal.state}</span> |
-                                Votes: ${proposal.vote_count} |
-                                Scores: <span class="status-indicator ${scoresClass}">${showScores ? 'Final' : 'Hidden'}</span>
+                        <div class="proposal">
+                            <div class="proposal-header">
+                                <div class="proposal-title">${proposal.title}</div>
+                                <div class="meta">
+                                    <span class="badge ${stateClass}">${proposal.state}</span>
+                                    <span class="meta-item">${proposal.vote_count} ${proposal.vote_count === 1 ? 'vote' : 'votes'}</span>
+                                    <span class="meta-item">ID: ${proposal.proposal_id}</span>
+                                </div>
                             </div>
-                            ${scoreDisplay}
-                            ${proposal.state === 'active' ? `
-                                <button onclick="finalizeProposal('${proposal.proposal_id}')" class="success">
-                                    🔓 Finalize & Decrypt Votes
-                                </button>
-                            ` : ''}
-                            <button onclick="loadProposalVotes('${proposal.id}')">
-                                👥 View Votes
-                            </button>
-                        </div>
-                    `;
-                });
-
-                container.innerHTML = html;
-                updateFinalizationControls();
-            } catch (error) {
-                container.innerHTML = `<div class="error">Error loading proposals: ${error.message}</div>`;
-            }
-        }
-
-        // Format score numbers
-        function formatScore(score) {
-            if (score === 0) return '0';
-            if (score >= 1e18) {
-                return (score / 1e18).toFixed(2) + ' tokens';
-            }
-            return score.toString();
-        }
-
-        // Load ciphertexts
-        async function loadCiphertexts() {
-            const container = document.getElementById('ciphertexts-data');
-            container.innerHTML = '<div class="loading">Loading encrypted votes...</div>';
-
-            try {
-                const response = await fetch('/api/admin/ciphertexts');
-                const data = await response.json();
-                
-                console.log('📊 Full ciphertexts response:', data);
-
-                if (!data.ciphertexts || data.count === 0) {
-                    container.innerHTML = `
-                        <div class="loading">
-                            <p><strong>No encrypted votes found.</strong></p>
-                            <p><strong>Source:</strong> ${data.source || 'unknown'}</p>
-                            <p><strong>Count:</strong> ${data.count || 0}</p>
-                            ${data.error ? `<p><strong>Error:</strong> ${data.error}</p>` : ''}
-                            <details>
-                                <summary>Debug Info</summary>
-                                <pre>${JSON.stringify(data.debug_info || {}, null, 2)}</pre>
-                            </details>
-                        </div>
-                    `;
-                    return;
-                }
-
-                let html = `<h4>📊 Found ${data.count} encrypted votes (Source: ${data.source})</h4>`;
-                
-                // Handle both array and object responses
-                const ciphertexts = Array.isArray(data.ciphertexts) ? data.ciphertexts : [];
-                
-                if (ciphertexts.length === 0) {
-                    container.innerHTML = `
-                        <div class="loading">
-                            <p>No encrypted votes found in response.</p>
-                            <details>
-                                <summary>Debug Info</summary>
-                                <pre>${JSON.stringify(data, null, 2)}</pre>
-                            </details>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                ciphertexts.forEach((vote, index) => {
-                    html += `
-                        <div class="vote-card">
-                            <strong>Vote #${index + 1}</strong> | 
-                            Voter: ${vote.voter || 'Unknown'} | 
-                            Choice: ${vote.choice || 'Unknown'} |
-                            Created: ${vote.created ? new Date(vote.created * 1000).toLocaleString() : 'Unknown'}
-                            <div class="ciphertext">
-                                <strong>c1:</strong> ${vote.c1 || 'N/A'}<br>
-                                <strong>c2:</strong> ${vote.c2 || 'N/A'}<br>
-                                <strong>Proof:</strong> ${vote.proof ? JSON.stringify(vote.proof).substring(0, 200) + '...' : 'N/A'}
-                            </div>
-                        </div>
-                    `;
-                });
-
-                container.innerHTML = html;
-            } catch (error) {
-                console.error('❌ Error loading ciphertexts:', error);
-                container.innerHTML = `<div class="error">Error loading ciphertexts: ${error.message}</div>`;
-            }
-        }
-
-        // Check election status
-        async function checkElectionStatus() {
-            const container = document.getElementById('election-status');
-            container.innerHTML = '<div class="loading">Checking election status...</div>';
-
-            try {
-                const response = await fetch('/api/admin/election-status');
-                const data = await response.json();
-
-                let html = `
-                    <h4>🗳️ Election Server Status</h4>
-                    <p><strong>Backend Connected:</strong> ${data.backend_connected ? '✅ Yes' : '❌ No'}</p>
-                `;
-
-                if (data.backend_connected) {
-                    html += `
-                        <p><strong>Election Initialized:</strong> ${data.election_status?.initialized ? '✅ Yes' : '❌ No'}</p>
-                        <p><strong>Public Key Available:</strong> ${data.election_status?.params_available ? '✅ Yes' : '❌ No'}</p>
-                        <p><strong>Total Votes:</strong> ${data.ciphertexts_count || 0}</p>
                     `;
 
-                    if (data.election_status?.params) {
+                    // Scores
+                    if (showScores) {
                         html += `
-                            <h5>🔑 ElGamal Parameters</h5>
-                            <div class="ciphertext">
-                                <strong>p:</strong> ${data.election_status.params.p}<br>
-                                <strong>g:</strong> ${data.election_status.params.g}<br>
-                                <strong>h:</strong> ${data.election_status.params.h}
+                            <div class="scores">
+                                <div class="score-box">
+                                    <div class="score-label">For</div>
+                                    <div class="score-value">${formatScore(proposal.scores[0])}</div>
+                                </div>
+                                <div class="score-box">
+                                    <div class="score-label">Against</div>
+                                    <div class="score-value">${formatScore(proposal.scores[1])}</div>
+                                </div>
+                                <div class="score-box">
+                                    <div class="score-label">Abstain</div>
+                                    <div class="score-value">${formatScore(proposal.scores[2])}</div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="scores">
+                                <div class="score-box" style="grid-column: 1 / -1;">
+                                    <div class="score-label">Encrypted Voting</div>
+                                    <div class="hidden-text">Results hidden until finalized</div>
+                                </div>
                             </div>
                         `;
                     }
-                } else {
-                    html += '<p class="error">❌ Cannot connect to ElGamal election server</p>';
+
+                    // Finalize button for active proposals
+                    if (proposal.state === 'active') {
+                        html += `<button class="finalize" onclick="finalize('${proposal.proposal_id}')">Finalize Proposal</button>`;
+                    }
+
+                    // Votes section
+                    if (votesData.votes && votesData.votes.length > 0) {
+                        html += `<div class="votes-section"><h3>Votes (${votesData.votes.length})</h3>`;
+
+                        votesData.votes.forEach((vote, index) => {
+                            html += `
+                                <div class="vote">
+                                    <div class="vote-header">Vote #${index + 1}</div>
+                                    <div class="vote-meta">
+                                        Choice: Encrypted • 
+                                        ${formatScore(vote.vp)} VP • 
+                                        ${formatTime(vote.created)}
+                                    </div>
+                            `;
+
+                            // Show ciphertext if available
+                            if (vote.c1 && vote.c2) {
+                                html += `
+                                    <div class="cipher">
+                                        <div><strong>C1:</strong> ${vote.c1.substring(0, 80)}...</div>
+                                        <div><strong>C2:</strong> ${vote.c2.substring(0, 80)}...</div>
+                                        ${vote.proof ? '<div><strong>ZK Proof:</strong> Verified</div>' : ''}
+                                    </div>
+                                `;
+                            }
+
+                            html += `</div>`;
+                        });
+
+                        html += `</div>`;
+                    } else {
+                        html += `<div class="empty">No votes yet</div>`;
+                    }
+
+                    html += `</div>`; // Close proposal
                 }
 
                 container.innerHTML = html;
+
             } catch (error) {
-                container.innerHTML = `<div class="error">Error checking status: ${error.message}</div>`;
+                container.innerHTML = `<div class="empty">Error: ${error.message}<br><br>Press F5 to retry</div>`;
             }
-        }
-
-        // Reset election
-        async function resetElection() {
-            if (!confirm('Are you sure you want to reset the election? This will clear all votes!')) {
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/admin/reset-election', { method: 'POST' });
-                const data = await response.json();
-
-                if (data.success) {
-                    alert('✅ Election reset successfully!');
-                    checkElectionStatus();
-                    loadCiphertexts();
-                } else {
-                    alert('❌ Failed to reset election: ' + data.message);
-                }
-            } catch (error) {
-                alert('❌ Error resetting election: ' + error.message);
-            }
-        }
-
-        // Update finalization controls
-        function updateFinalizationControls() {
-            const container = document.getElementById('finalization-controls');
-            const activeProposals = currentProposals.filter(p => p.state === 'active');
-
-            if (activeProposals.length === 0) {
-                container.innerHTML = '<p>No active proposals to finalize.</p>';
-                return;
-            }
-
-            let html = '<h4>🗳️ Active Proposals Ready for Finalization:</h4>';
-            activeProposals.forEach(proposal => {
-                html += `
-                    <button onclick="finalizeProposal('${proposal.proposal_id}')" class="success">
-                        🔓 Finalize "${proposal.title}"
-                    </button>
-                `;
-            });
-
-            container.innerHTML = html;
         }
 
         // Finalize proposal
-        async function finalizeProposal(proposalId) {
-            if (!confirm(`Are you sure you want to finalize proposal ${proposalId}? This will trigger threshold decryption.`)) {
-                return;
-            }
-
-            const container = document.getElementById('finalization-results');
-            container.innerHTML = '<div class="loading">🔓 Finalizing proposal and decrypting votes...</div>';
+        async function finalize(proposalId) {
+            if (!confirm('Finalize this proposal and decrypt all votes?')) return;
 
             try {
-                const response = await fetch(`/api/end_voting/${proposalId}`, { method: 'POST' });
-                const data = await response.json();
+                const resp = await fetch(`/api/end_voting/${proposalId}`, { method: 'POST' });
+                const data = await resp.json();
 
                 if (data.success) {
-                    let html = `
-                        <div class="success">
-                            <h4>✅ Proposal Finalized Successfully!</h4>
-                            <p><strong>Proposal ID:</strong> ${data.proposal_id}</p>
-                            <p><strong>Final State:</strong> ${data.state}</p>
-                            <p><strong>Total Votes:</strong> ${data.scores_total}</p>
-                            <h5>📊 Final Tally:</h5>
-                            <div class="scores">
-                                <div class="score-item">For: ${formatScore(data.final_tally[0])}</div>
-                                <div class="score-item">Against: ${formatScore(data.final_tally[1])}</div>
-                                <div class="score-item">Abstain: ${formatScore(data.final_tally[2])}</div>
-                            </div>
-                        </div>
-                    `;
-                    container.innerHTML = html;
-                    
-                    // Refresh proposals to show updated state
-                    setTimeout(() => {
-                        loadProposals();
-                        loadStats();
-                    }, 1000);
+                    alert(`Proposal finalized\n\nFor: ${formatScore(data.final_tally[0])}\nAgainst: ${formatScore(data.final_tally[1])}\nAbstain: ${formatScore(data.final_tally[2])}`);
+                    loadAll(); // Reload everything
                 } else {
-                    container.innerHTML = `<div class="error">❌ Failed to finalize proposal: ${data.message}</div>`;
+                    alert('Failed: ' + data.message);
                 }
             } catch (error) {
-                container.innerHTML = `<div class="error">❌ Error finalizing proposal: ${error.message}</div>`;
+                alert('Error: ' + error.message);
             }
         }
 
-        // Load proposal votes
-        async function loadProposalVotes(proposalId) {
-            const container = document.getElementById('ciphertexts-data');
-            container.innerHTML = '<div class="loading">Loading votes for this proposal...</div>';
-
-            try {
-                const response = await fetch(`/api/admin/proposal-votes/${proposalId}`);
-                const data = await response.json();
-
-                if (data.votes.length === 0) {
-                    container.innerHTML = '<div class="loading">No votes found for this proposal.</div>';
-                    return;
-                }
-
-                let html = `<h4>📊 Found ${data.votes.length} votes for proposal: ${data.proposal_title}</h4>`;
-                html += `<p><strong>Proposal ID:</strong> ${proposalId}</p>`;
-                
-                data.votes.forEach((vote, index) => {
-                    const encryptedText = vote.encrypted ? '🔐 Encrypted' : '⚠️ Unencrypted';
-                    
-                    html += `
-                        <div class="vote-card">
-                            <strong>Vote #${index + 1}</strong> | 
-                            🔒 <strong>Choice Hidden (Encrypted)</strong> |
-                            ${encryptedText} |
-                            Voter: ${vote.voter || 'Unknown'} |
-                            VP: ${formatScore(vote.vp)} |
-                            Created: ${new Date(vote.created * 1000).toLocaleString()}
-                            ${vote.c1 ? `<br><strong>Ciphertext C1:</strong> ${vote.c1.substring(0, 32)}...` : ''}
-                            ${vote.c2 ? `<br><strong>Ciphertext C2:</strong> ${vote.c2.substring(0, 32)}...` : ''}
-                            ${vote.proof ? `<br><strong>ZK Proof:</strong> Present (${vote.proof.length} bytes)` : ''}
-                            ${vote.reason ? `<br><strong>Reason:</strong> ${vote.reason}` : ''}
-                        </div>
-                    `;
-                });
-
-                container.innerHTML = html;
-            } catch (error) {
-                container.innerHTML = `<div class="error">Error loading proposal votes: ${error.message}</div>`;
-            }
-        }
-
-        // Verify all proofs
-        async function verifyProofs() {
-            const container = document.getElementById('ciphertexts-data');
-            const originalContent = container.innerHTML;
-            container.innerHTML = '<div class="loading">🔍 Verifying zero-knowledge proofs...</div>';
-
-            try {
-                const response = await fetch('/api/admin/verify-proofs', { method: 'POST' });
-                const data = await response.json();
-
-                if (data.success) {
-                    container.innerHTML = originalContent + `
-                        <div class="success">
-                            ✅ Verified ${data.verified_count} out of ${data.total_count} proofs successfully!
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = originalContent + `
-                        <div class="error">
-                            ❌ Proof verification failed: ${data.message}
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                container.innerHTML = originalContent + `
-                    <div class="error">❌ Error verifying proofs: ${error.message}</div>
-                `;
-            }
-        }
-
-        // Auto-refresh stats every 30 seconds
-        setInterval(loadStats, 30000);
-
-        // Load initial data
-        window.onload = function() {
-            loadStats();
-            loadProposals();
-        };
+        // Auto-load on page load
+        window.onload = loadAll;
     </script>
 </body>
 </html>
