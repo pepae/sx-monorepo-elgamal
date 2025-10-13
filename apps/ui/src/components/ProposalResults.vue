@@ -143,8 +143,9 @@ onMounted(() => {
     class="space-y-1"
   >
     <div>
-      All votes are encrypted and will be decrypted only after the voting period
-      is over, making the results visible.
+      This proposal uses Shutter's private voting with linear homomorphic encryption.
+      All votes remain permanently encrypted - only the aggregated tally is revealed
+      after the voting period, while individual votes stay cryptographically private forever.
     </div>
     <div v-if="proposal.quorum">
       {{ quorumLabel(proposal.quorum_type) }}:
