@@ -564,11 +564,15 @@ def handle_vote_mutation(query, variables):
     voting_power = 10**18  # 1 token with 18 decimals = 1000000000000000000 wei
     
     # Store vote in memory (but don't update proposal scores)
+    # CRITICAL: Never store plaintext choice - only ciphertext and proof
     vote_id = "0x" + secrets.token_hex(32)
     vote_data = {
         "id": vote_id,
         "proposal_id": proposal_id,
-        "choice": choice,
+        # REMOVED: "choice" field - never store plaintext vote
+        "c1": encrypted_vote_data.get("c1") if encrypted_vote_data.get("encrypted") else None,
+        "c2": encrypted_vote_data.get("c2") if encrypted_vote_data.get("encrypted") else None,
+        "proof": encrypted_vote_data.get("proof") if encrypted_vote_data.get("encrypted") else None,
         "reason": reason,
         "voter": "0x1234567890123456789012345678901234567890",  # Mock voter address
         "vp": voting_power,  # Voting power
@@ -578,6 +582,8 @@ def handle_vote_mutation(query, variables):
     
     # Store in global votes list
     votes.append(vote_data)
+    
+    print(f"🔒 Vote stored with ONLY encrypted ciphertext - plaintext choice never stored or transmitted")
     
     # Update proposal vote counts BUT NOT SCORES (to preserve privacy)
     global proposals_storage
@@ -1717,17 +1723,19 @@ async def admin_dashboard():
                 html += `<p><strong>Proposal ID:</strong> ${proposalId}</p>`;
                 
                 data.votes.forEach((vote, index) => {
-                    const choiceText = vote.choice === 1 ? 'For' : vote.choice === 2 ? 'Against' : 'Abstain';
                     const encryptedText = vote.encrypted ? '🔐 Encrypted' : '⚠️ Unencrypted';
                     
                     html += `
                         <div class="vote-card">
                             <strong>Vote #${index + 1}</strong> | 
-                            Choice: <strong>${choiceText}</strong> |
+                            🔒 <strong>Choice Hidden (Encrypted)</strong> |
                             ${encryptedText} |
                             Voter: ${vote.voter || 'Unknown'} |
                             VP: ${formatScore(vote.vp)} |
                             Created: ${new Date(vote.created * 1000).toLocaleString()}
+                            ${vote.c1 ? `<br><strong>Ciphertext C1:</strong> ${vote.c1.substring(0, 32)}...` : ''}
+                            ${vote.c2 ? `<br><strong>Ciphertext C2:</strong> ${vote.c2.substring(0, 32)}...` : ''}
+                            ${vote.proof ? `<br><strong>ZK Proof:</strong> Present (${vote.proof.length} bytes)` : ''}
                             ${vote.reason ? `<br><strong>Reason:</strong> ${vote.reason}` : ''}
                         </div>
                     `;
