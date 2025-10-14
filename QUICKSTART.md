@@ -2,24 +2,45 @@
 
 ## Quick Setup (Recommended)
 
-### Step 1: Start Backend Services with Docker
+### Option A: One-Command Startup (Easiest)
 
 ```powershell
-cd "C:\Users\Luis\OneDrive\Dev projects\snapshot\sx-monorepo"
-docker-compose up -d election-server keyper-server graphql-adapter
+# Windows PowerShell
+.\start.ps1
+
+# Linux/Mac
+./start.sh
+```
+
+This automatically:
+1. ✅ Checks Docker is running
+2. ✅ Builds and starts all 3 backend services
+3. ✅ Runs health checks
+4. ✅ Shows you next steps
+
+Then start the UI:
+
+```bash
+npm run dev
+```
+
+### Option B: Manual Startup
+
+**Step 1: Start Backend Services**
+
+```bash
+docker-compose up -d
 ```
 
 Wait ~30 seconds for services to be healthy.
 
-### Step 2: Start UI Locally
+**Step 2: Start UI**
 
-```powershell
-# In a new terminal
-cd "C:\Users\Luis\OneDrive\Dev projects\snapshot\sx-monorepo"
+```bash
 npm run dev
 ```
 
-### Step 3: Access the App
+**Step 3: Access the App**
 
 Open: **http://localhost:8080/#/eth:encrypted-dao**
 
@@ -27,13 +48,12 @@ Open: **http://localhost:8080/#/eth:encrypted-dao**
 
 After setup, you'll have:
 
-| Service | URL | Purpose |
-|---------|-----|---------|
-| **Snapshot UI** | http://localhost:8080/#/eth:encrypted-dao | Main interface - START HERE |
-| Admin Dashboard | http://localhost:3001/admin | Finalize proposals |
-| Election Server | http://localhost:5000/api/status | Vote storage |
-| Keyper Server | http://localhost:5001/status | Threshold keys |
-| GraphQL API | http://localhost:3001/graphql | Data layer |
+| Service | URL | Purpose | Running In |
+|---------|-----|---------|------------|
+| **Snapshot UI** | http://localhost:8080/#/eth:encrypted-dao | Main interface - START HERE | Local (npm) |
+| Election Server | http://localhost:5000/api/status | Vote storage & encryption | Docker |
+| Keyper Server | http://localhost:5001/status | Threshold key management | Docker |
+| GraphQL Adapter | http://localhost:4001/status | GraphQL API bridge | Docker |
 
 ## 30-Second Demo
 
@@ -65,16 +85,23 @@ After finalization:
 ## Common Commands
 
 ```bash
+# Start everything (automated)
+.\start.ps1              # Windows
+./start.sh               # Linux/Mac
+
+# Start UI
+npm run dev
+
 # View logs
 docker-compose logs -f
 
 # View specific service
 docker-compose logs -f graphql-adapter
 
-# Restart everything
+# Restart backend services
 docker-compose restart
 
-# Stop everything
+# Stop backend services
 docker-compose down
 
 # Clean rebuild
@@ -103,20 +130,25 @@ kill -9 <PID>
 ```
 
 ### Can't access UI
-1. Wait 2-3 minutes for all services to start
-2. Check health: `docker-compose ps`
-3. Check logs: `docker-compose logs snapshot-ui`
+1. Make sure backend services are healthy: `docker-compose ps`
+2. Ensure UI is running: Check terminal running `npm run dev`
+3. Check backend logs: `docker-compose logs -f graphql-adapter`
+4. Verify services:
+   - http://localhost:5000/api/status (Election Server)
+   - http://localhost:5001/status (Keyper Server)
+   - http://localhost:4001/status (GraphQL Adapter)
 
 ## Architecture
 
 ```
 Browser
    ↓
-Snapshot UI (Vue.js)
-   ↓ GraphQL
-GraphQL Adapter
+Snapshot UI (Vue.js) ← Running locally with npm
+   ↓ GraphQL (port 4001)
+GraphQL Adapter ← Docker container
    ↓ REST API
-Election Server ←→ Keyper Server
+Election Server ←→ Keyper Server ← Docker containers
+(port 5000)         (port 5001)
 ```
 
 ## Privacy Guarantee

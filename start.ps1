@@ -64,25 +64,25 @@ Write-Host ""
 Write-Host ""
 
 if ($allHealthy) {
-    Write-Host "[SUCCESS] All services are healthy and running!" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "Access the application:" -ForegroundColor Cyan
-    Write-Host "  Snapshot UI:        http://localhost:8080/#/eth:encrypted-dao" -ForegroundColor White
-    Write-Host "  Admin Dashboard:    http://localhost:3001/admin" -ForegroundColor White
+    Write-Host "[SUCCESS] All backend services are healthy and running!" -ForegroundColor Green
     Write-Host ""
     Write-Host "Service endpoints:" -ForegroundColor Cyan
     Write-Host "  Election Server:    http://localhost:5000/api/status" -ForegroundColor Gray
     Write-Host "  Keyper Server:      http://localhost:5001/status" -ForegroundColor Gray
-    Write-Host "  GraphQL Adapter:    http://localhost:3001/status" -ForegroundColor Gray
+    Write-Host "  GraphQL Adapter:    http://localhost:4001/status" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Next steps:" -ForegroundColor Cyan
+    Write-Host "  1. Start the Snapshot UI:" -ForegroundColor White
+    Write-Host "     cd apps/ui" -ForegroundColor Gray
+    Write-Host "     npm run dev" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  2. Access the UI at: http://localhost:8080/#/eth:encrypted-dao" -ForegroundColor White
     Write-Host ""
     Write-Host "Useful commands:" -ForegroundColor Cyan
     Write-Host "  View logs:          docker-compose logs -f" -ForegroundColor Gray
     Write-Host "  Stop services:      docker-compose down" -ForegroundColor Gray
     Write-Host "  Restart:            docker-compose restart" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "Ready to use! Open http://localhost:8080/#/eth:encrypted-dao in your browser" -ForegroundColor Green
 } else {
     Write-Host "[WARNING] Services are taking longer than expected to start." -ForegroundColor Yellow
     Write-Host "  Check the logs: docker-compose logs" -ForegroundColor Gray
-    Write-Host "  You can still try accessing: http://localhost:8080/#/eth:encrypted-dao" -ForegroundColor Gray
 }

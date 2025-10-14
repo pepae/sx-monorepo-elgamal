@@ -66,27 +66,6 @@ services:
     networks:
       - snapshot-network
 
-  # Snapshot UI (Port 8080)
-  snapshot-ui:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.ui
-    ports:
-      - "8080:8080"
-    environment:
-      - VITE_GRAPHQL_URL=http://localhost:4001/graphql
-      - NODE_ENV=development
-    volumes:
-      - ./apps/ui:/app
-      - /app/node_modules
-      - ./packages:/packages
-    command: npm run dev -- --host 0.0.0.0 --port 8080
-    depends_on:
-      graphql-adapter:
-        condition: service_healthy
-    networks:
-      - snapshot-network
-
 networks:
   snapshot-network:
     driver: bridge

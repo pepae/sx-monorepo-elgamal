@@ -7,7 +7,7 @@ This is the Snapshot monorepository containing a Vue frontend, GraphQL API, tran
 
 ## 🔐 Encrypted Voting with Docker
 
-**New!** Run Snapshot with ElGamal threshold encrypted voting in one command:
+**New!** Run Snapshot with ElGamal threshold encrypted voting:
 
 ```bash
 # Windows PowerShell
@@ -17,15 +17,28 @@ This is the Snapshot monorepository containing a Vue frontend, GraphQL API, tran
 ./start.sh
 ```
 
-Then open: **http://localhost:8080/#/eth:encrypted-dao**
+This starts the backend services (Election Server, Keyper Server, GraphQL Adapter) in Docker.
 
-📖 **Full Docker Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
+Then start the UI:
 
-This provides:
+```bash
+npm run dev
+```
+
+Open: **http://localhost:8080/#/eth:encrypted-dao**
+
+📖 **Quick Start**: See [QUICKSTART.md](./QUICKSTART.md) for a 30-second demo.  
+📖 **Full Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
+
+**What you get:**
 - ✅ Privacy-preserving voting (individual choices never revealed)
 - ✅ Zero-knowledge proofs for vote validity
 - ✅ Threshold decryption (no single point of failure)
 - ✅ Complete isolated environment for testing
+
+**Architecture:**
+- **Backend services** run in Docker (ports 5000, 5001, 4001)
+- **Snapshot UI** runs locally with npm (port 8080)
 
 ## Apps and packages
 
