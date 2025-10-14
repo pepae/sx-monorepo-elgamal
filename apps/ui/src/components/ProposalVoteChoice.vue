@@ -16,7 +16,7 @@ withDefaults(
 
 <template>
   <div
-    v-if="proposal.privacy !== 'none' && !proposal.completed"
+    v-if="proposal.privacy !== 'none'"
     class="flex flex-col gap-1 items-start w-full"
   >
     <div class="flex gap-1 items-center">
