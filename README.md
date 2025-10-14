@@ -5,6 +5,28 @@
 
 This is the Snapshot monorepository containing a Vue frontend, GraphQL API, transaction relayer, and TypeScript SDK.
 
+## 🔐 Encrypted Voting with Docker
+
+**New!** Run Snapshot with ElGamal threshold encrypted voting in one command:
+
+```bash
+# Windows PowerShell
+.\start.ps1
+
+# Linux/Mac
+./start.sh
+```
+
+Then open: **http://localhost:8080/#/eth:encrypted-dao**
+
+📖 **Full Docker Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
+
+This provides:
+- ✅ Privacy-preserving voting (individual choices never revealed)
+- ✅ Zero-knowledge proofs for vote validity
+- ✅ Threshold decryption (no single point of failure)
+- ✅ Complete isolated environment for testing
+
 ## Apps and packages
 
 - [`./apps/ui`](./apps/ui): Snapshot official frontend using Vue 3

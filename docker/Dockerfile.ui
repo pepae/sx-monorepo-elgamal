@@ -1,0 +1,22 @@
+# Dockerfile for Snapshot UI
+FROM node:22-slim
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json yarn.lock turbo.json ./
+COPY apps/ui/package.json ./apps/ui/
+COPY packages/sx.js/package.json ./packages/sx.js/
+
+# Install dependencies
+RUN yarn install --frozen-lockfile
+
+# Copy source files
+COPY apps/ui ./apps/ui
+COPY packages/sx.js ./packages/sx.js
+
+# Expose port
+EXPOSE 8080
+
+# Start development server
+CMD ["yarn", "workspace", "@snapshot-labs/snapshot", "dev", "--host", "0.0.0.0", "--port", "8080"]

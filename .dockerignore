@@ -1,0 +1,7 @@
+# Docker-specific ignores
+docker/build-cache/
+elgamal-backend/
+
+# Logs
+*.log
+npm-debug.log*

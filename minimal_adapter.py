@@ -29,11 +29,17 @@ except ImportError as e:
     def setup_elgamal(): return 1, 1
 
 # Configuration
-ELECTION_SERVER_URL = "http://localhost:5000"  # ElGamal election server
-KEYPER_SERVER_URL = "http://localhost:5001"    # Keyper threshold server
+ELECTION_SERVER_URL = os.getenv("ELECTION_SERVER_URL", "http://localhost:5000")  # ElGamal election server
+KEYPER_SERVER_URL = os.getenv("KEYPER_SERVER_URL", "http://localhost:5001")    # Keyper threshold server
 DEFAULT_SPACE_ID = "encrypted-dao.eth"
 RPC_URL = "https://eth.llamarpc.com"  # Public Ethereum RPC (LlamaRPC)
 RPC_FALLBACK = "https://cloudflare-eth.com"  # Fallback RPC
+
+# Print configuration on module load
+print("🔌 Minimal GraphQL Adapter Configuration:")
+print(f"🎯 Election Server URL: {ELECTION_SERVER_URL}")
+print(f"🔑 Keyper Server URL: {KEYPER_SERVER_URL}")
+print(f"🌍 RPC URL: {RPC_URL}")
 
 # Consistent addresses for space and proposals - Use known strategy names
 SPACE_CONTROLLER = "0x" + secrets.token_hex(20)

@@ -1,0 +1,47 @@
+# Dockerfile for ElGamal Election and Keyper Servers
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone the ElGamal PoC repository
+RUN git clone https://github.com/pepae/SnapshotShieldedVoting2PoC.git /tmp/elgamal-poc && \
+    cd /tmp/elgamal-poc && \
+    ls -la && \
+    ls -la webapp/ && \
+    ls -la webapp/backend/
+
+# Copy all files to /app - webapp/backend/ contains the servers
+RUN cp -r /tmp/elgamal-poc/webapp/backend/* /app/
+
+# Copy crypto if it exists, otherwise we'll mount it from host
+RUN if [ -d /tmp/elgamal-poc/crypto ]; then \
+        cp -r /tmp/elgamal-poc/crypto /app/crypto; \
+    else \
+        mkdir -p /app/crypto && echo "Crypto folder will be mounted from host"; \
+    fi
+
+# Verify files were copied
+RUN ls -la /app/ && echo "=== Checking for servers ===" && ls -la /app/*.py
+
+# Remove __init__.py if it exists (causes Flask import issues)
+RUN rm -f /app/__init__.py
+
+# Create proper startup scripts that bind to 0.0.0.0 and use environment variables
+RUN printf '#!/usr/bin/env python3\nimport re\nimport sys\nimport os\nsys.path.insert(0, "/app")\ncode = open("/app/election_server.py").read()\ncode = re.sub(r"host=.*?,", "host=\\"0.0.0.0\\",", code)\n# Replace hardcoded localhost:5001 with environment variable\nkeyper_url = os.getenv("KEYPER_URL", "http://localhost:5001")\ncode = code.replace("http://localhost:5001", keyper_url)\nkeyper_host = keyper_url.replace("http://", "")\ncode = code.replace("\\"localhost:5001\\"", f"\\"{keyper_host}\\"")\nexec(code)\n' > /app/run_election.py && \
+    printf '#!/usr/bin/env python3\nimport re\nimport sys\nsys.path.insert(0, "/app")\ncode = open("/app/keyper_server.py").read()\ncode = re.sub(r"host=.*?,", "host=\\"0.0.0.0\\",", code)\nexec(code)\n' > /app/run_keyper.py && \
+    chmod +x /app/run_*.py
+
+# Install Python dependencies
+RUN pip install --no-cache-dir flask flask-cors requests sympy pycryptodome
+
+# Expose ports
+EXPOSE 5000 5001
+
+# Default command (will be overridden in docker-compose)
+CMD ["python", "start_servers.py"]

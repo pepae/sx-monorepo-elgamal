@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # ElGamal Election Server (Port 5000)
+  election-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.elgamal
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - KEYPER_URL=http://keyper-server:5001
+    command: python /app/run_election.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - snapshot-network
+
+  # Keyper Threshold Server (Port 5001)
+  keyper-server:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.elgamal
+    ports:
+      - "5001:5001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: python /app/run_keyper.py
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - snapshot-network
+
+  # GraphQL Adapter (Port 4001)
+  graphql-adapter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.adapter
+    ports:
+      - "4001:4001"
+    environment:
+      - ELECTION_SERVER_URL=http://election-server:5000
+      - KEYPER_SERVER_URL=http://keyper-server:5001
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - .:/app
+      - ./crypto:/app/crypto
+    command: uvicorn minimal_adapter:app --host 0.0.0.0 --port 4001 --reload
+    depends_on:
+      election-server:
+        condition: service_healthy
+      keyper-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - snapshot-network
+
+  # Snapshot UI (Port 8080)
+  snapshot-ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    ports:
+      - "8080:8080"
+    environment:
+      - VITE_GRAPHQL_URL=http://localhost:4001/graphql
+      - NODE_ENV=development
+    volumes:
+      - ./apps/ui:/app
+      - /app/node_modules
+      - ./packages:/packages
+    command: npm run dev -- --host 0.0.0.0 --port 8080
+    depends_on:
+      graphql-adapter:
+        condition: service_healthy
+    networks:
+      - snapshot-network
+
+networks:
+  snapshot-network:
+    driver: bridge
