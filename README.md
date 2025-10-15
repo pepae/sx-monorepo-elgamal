@@ -5,9 +5,9 @@
 
 This is a fork of the Snapshot monorepository containing a Vue frontend, GraphQL API, transaction relayer, and TypeScript SDK including permanent shielded voting using threshold-ElGamal.
 
-## 🔐 Encrypted Voting with Docker
+## Encrypted Voting with Docker
 
-**New!** Run Snapshot with ElGamal threshold encrypted voting:
+Run Snapshot with ElGamal threshold encrypted voting:
 
 ```bash
 # Windows PowerShell
@@ -27,18 +27,44 @@ npm run dev
 
 Open: **http://localhost:8080/#/eth:encrypted-dao**
 
-📖 **Quick Start**: See [QUICKSTART.md](./QUICKSTART.md) for a 30-second demo.  
-📖 **Full Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
+**Quick Start**: See [QUICKSTART.md](./QUICKSTART.md) for a 30-second demo.  
+**Full Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
 
 **What you get:**
-- ✅ Privacy-preserving voting (individual choices never revealed)
-- ✅ Zero-knowledge proofs for vote validity
-- ✅ Threshold decryption (no single point of failure)
-- ✅ Complete isolated environment for testing
+- Privacy-preserving voting (individual choices never revealed)
+- Zero-knowledge proofs for vote validity
+- Threshold decryption (no single point of failure)
+- Complete isolated environment for testing
 
 **Architecture:**
 - **Backend services** run in Docker (ports 5000, 5001, 4001)
 - **Snapshot UI** runs locally with npm (port 8080)
+
+---
+
+## Important Disclaimer
+
+**This is a proof-of-concept demonstration only.** The implementation showcases the technical feasibility of integrating threshold ElGamal encryption with Snapshot's voting system, but has significant limitations:
+
+### Current Limitations:
+- **Centralized keypers**: All keyper instances run locally on a single machine. In production, keypers must be distributed across independent operators to provide meaningful threshold security.
+- **Binary votes only**: Currently supports yes/no voting. Multi-choice voting is possible by splitting choices into multiple binary votes, but this is not yet implemented.
+- **No persistence**: Data is stored in memory only and lost on restart.
+- **No authentication**: No voter identity verification or sybil resistance.
+- **Development environment**: Not hardened for production use.
+
+### Production Requirements:
+Before any production deployment, this system would require:
+- Distributed keyper infrastructure across independent operators
+- Secure key generation ceremony
+- Persistent storage with backup/recovery
+- Authentication and authorization system
+- Security audit of cryptographic implementation
+- Network-level security hardening
+- Multi-choice voting implementation
+- Comprehensive testing suite
+
+This proof-of-concept demonstrates that threshold encrypted voting can work with Snapshot's architecture, but significant engineering work would be needed for a production-ready system.
 
 ## Apps and packages
 
