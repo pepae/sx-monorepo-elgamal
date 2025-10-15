@@ -66,6 +66,15 @@ services:
     networks:
       - snapshot-network
 
+  ui:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.ui
+    ports:
+      - 8080:8080
+    networks:
+      - snapshot-network
+
 networks:
   snapshot-network:
     driver: bridge
