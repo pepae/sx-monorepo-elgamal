@@ -1,9 +1,9 @@
 [![Test CI](https://github.com/snapshot-labs/sx-monorepo/actions/workflows/test.yml/badge.svg)](https://github.com/snapshot-labs/sx-monorepo/actions/workflows/test.yml)
 [![Discord](https://img.shields.io/discord/707079246388133940.svg?label=&logo=discord&logoColor=ffffff&color=7389D8&labelColor=6A7EC2)](https://discord.snapshot.org/)
 
-# Snapshot monorepository
+# Snapshot/Shutter ElGamal PoC
 
-This is the Snapshot monorepository containing a Vue frontend, GraphQL API, transaction relayer, and TypeScript SDK.
+This is a fork of the Snapshot monorepository containing a Vue frontend, GraphQL API, transaction relayer, and TypeScript SDK including permanent shielded voting using threshold-ElGamal.
 
 ## 🔐 Encrypted Voting with Docker
 
