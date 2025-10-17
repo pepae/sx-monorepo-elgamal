@@ -10,22 +10,12 @@ This is a fork of the Snapshot monorepository containing a Vue frontend, GraphQL
 Run Snapshot with ElGamal threshold encrypted voting:
 
 ```bash
-# Windows PowerShell
-.\start.ps1
-
-# Linux/Mac
-./start.sh
+docker-compose up --build -d
 ```
 
-This starts the backend services (Election Server, Keyper Server, GraphQL Adapter) in Docker.
+This starts all services including the UI. Wait ~30 seconds, then open:
 
-Then start the UI:
-
-```bash
-npm run dev
-```
-
-Open: **http://localhost:8080/#/eth:encrypted-dao**
+**http://localhost:8080/#/eth:encrypted-dao**
 
 **Quick Start**: See [QUICKSTART.md](./QUICKSTART.md) for a 30-second demo.  
 **Full Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
@@ -36,9 +26,11 @@ Open: **http://localhost:8080/#/eth:encrypted-dao**
 - Threshold decryption (no single point of failure)
 - Complete isolated environment for testing
 
-**Architecture:**
-- **Backend services** run in Docker (ports 5000, 5001, 4001)
-- **Snapshot UI** runs locally with npm (port 8080)
+**All services run in Docker:**
+- Election Server (port 5000)
+- Keyper Server (port 5001)
+- GraphQL Adapter (port 4001)
+- Snapshot UI (port 8080)
 
 ---
 

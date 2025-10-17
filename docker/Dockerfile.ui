@@ -5,10 +5,15 @@ WORKDIR /app
 
 COPY / /app
 
+# Install dependencies
 RUN yarn
+
+# Build the sx.js package that ui depends on
+RUN yarn workspace @snapshot-labs/sx build
 
 # Expose port
 EXPOSE 8080
 
-# Start development server
-CMD ["yarn", "dev", "--", "--host", "0.0.0.0"]
+# Start development server - run directly in the ui directory
+WORKDIR /app/apps/ui
+CMD ["yarn", "dev", "--host", "0.0.0.0"]

@@ -2,47 +2,17 @@
 
 ## Quick Setup (Recommended)
 
-### Option A: One-Command Startup (Easiest)
-
-```powershell
-# Windows PowerShell
-.\start.ps1
-
-# Linux/Mac
-./start.sh
-```
-
-This automatically:
-1. ✅ Checks Docker is running
-2. ✅ Builds and starts all 3 backend services
-3. ✅ Runs health checks
-4. ✅ Shows you next steps
-
-Then start the UI:
+**One command to start everything:**
 
 ```bash
-npm run dev
+docker-compose up --build -d
 ```
 
-### Option B: Manual Startup
+Wait ~30 seconds for all services to start. Then access the app at:
 
-**Step 1: Start Backend Services**
+**http://localhost:8080/#/eth:encrypted-dao**
 
-```bash
-docker-compose up -d
-```
-
-Wait ~30 seconds for services to be healthy.
-
-**Step 2: Start UI**
-
-```bash
-npm run dev
-```
-
-**Step 3: Access the App**
-
-Open: **http://localhost:8080/#/eth:encrypted-dao**
+That's it! All services including UI are running in Docker. No Node.js installation required.
 
 ## What You Get
 
@@ -50,7 +20,7 @@ After setup, you'll have:
 
 | Service | URL | Purpose | Running In |
 |---------|-----|---------|------------|
-| **Snapshot UI** | http://localhost:8080/#/eth:encrypted-dao | Main interface - START HERE | Local (npm) |
+| **Snapshot UI** | http://localhost:8080/#/eth:encrypted-dao | Main interface - START HERE | Docker |
 | Election Server | http://localhost:5000/api/status | Vote storage & encryption | Docker |
 | Keyper Server | http://localhost:5001/status | Threshold key management | Docker |
 | GraphQL Adapter | http://localhost:4001/status | GraphQL API bridge | Docker |
@@ -85,27 +55,27 @@ After finalization:
 ## Common Commands
 
 ```bash
-# Start everything (automated)
-.\start.ps1              # Windows
-./start.sh               # Linux/Mac
+# Start everything
+docker-compose up -d
 
-# Start UI
-npm run dev
+# Rebuild and start
+docker-compose up --build -d
 
-# View logs
+# View all logs
 docker-compose logs -f
 
 # View specific service
+docker-compose logs -f ui
 docker-compose logs -f graphql-adapter
 
-# Restart backend services
-docker-compose restart
-
-# Stop backend services
+# Stop all services
 docker-compose down
 
-# Clean rebuild
-docker-compose down -v && docker-compose up --build
+# Stop and remove all data
+docker-compose down -v
+
+# Restart a service
+docker-compose restart ui
 ```
 
 ## Troubleshooting
@@ -130,10 +100,11 @@ kill -9 <PID>
 ```
 
 ### Can't access UI
-1. Make sure backend services are healthy: `docker-compose ps`
-2. Ensure UI is running: Check terminal running `npm run dev`
-3. Check backend logs: `docker-compose logs -f graphql-adapter`
-4. Verify services:
+1. Make sure all services are running: `docker-compose ps`
+2. Check all services are healthy (status shows "healthy" or "Up")
+3. Check logs: `docker-compose logs -f`
+4. Verify service endpoints:
+   - http://localhost:8080/#/eth:encrypted-dao (UI)
    - http://localhost:5000/api/status (Election Server)
    - http://localhost:5001/status (Keyper Server)
    - http://localhost:4001/status (GraphQL Adapter)
@@ -143,7 +114,7 @@ kill -9 <PID>
 ```
 Browser
    ↓
-Snapshot UI (Vue.js) ← Running locally with npm
+Snapshot UI (Vue.js) ← Docker container (port 8080)
    ↓ GraphQL (port 4001)
 GraphQL Adapter ← Docker container
    ↓ REST API
