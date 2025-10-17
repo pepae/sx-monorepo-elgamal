@@ -31,7 +31,7 @@ After setup, you'll have:
 2. **Create Proposal**: Click "New proposal" → Fill form → Submit
 3. **Vote**: Open proposal → Select choice → Vote
 4. **View Encryption**: Go to "Votes" tab → See ciphertext (c1, c2) and ZK proof ✓
-5. **Finalize**: http://localhost:3001/admin → Select proposal → Click "End Voting"
+5. **Finalize**: http://localhost:4001/admin → Select proposal → Click "End Voting"
 
 ## Key Features
 

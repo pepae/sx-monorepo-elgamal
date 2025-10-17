@@ -19,6 +19,7 @@ This starts all services including the UI. Wait ~30 seconds, then open:
 
 **Quick Start**: See [QUICKSTART.md](./QUICKSTART.md) for a 30-second demo.  
 **Full Setup Guide**: See [DOCKER_SETUP.md](./DOCKER_SETUP.md) for complete instructions.
+**Admin page**: http://localhost:4001/admin 
 
 **What you get:**
 - Privacy-preserving voting (individual choices never revealed)
